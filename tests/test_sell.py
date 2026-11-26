@@ -362,3 +362,14 @@ def test_auto_targets_hot_items_refresh_sooner(catalog, db):
     price(db, "bullseye", 0, 10, at=NOW - timedelta(hours=2))        # ordinary, stale
     got = auto_targets(catalog, db, listed_ids={"id_ash_sys"}, top_n=0, now=NOW)
     assert set(got) == {("ash_sys", None), ("bullseye", 0)}
+
+
+def test_items_without_price_come_first(catalog, db):
+    from wfmt.sell import auto_targets, select_targets
+
+    # a mod (top category) with an old price, and a prime part with no price at all
+    db.inventory_save([InvItem("/M/Bull", 1, 0), InvItem("/S/Rec", 1, None)], [], NOW)
+    price(db, "bullseye", 0, 5, at=NOW - timedelta(hours=5))
+    assert price_targets(catalog, db, now=NOW)[0] == ("soma_rec", None)
+    assert select_targets(catalog, db, subs=None, max_age_s=0, now=NOW)[0] == ("soma_rec", None)
+    assert auto_targets(catalog, db, listed_ids={"id_bullseye"}, now=NOW)[0] == ("soma_rec", None)

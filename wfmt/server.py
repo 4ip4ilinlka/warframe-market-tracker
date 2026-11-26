@@ -57,13 +57,15 @@ class AppState:
     medians: dict = field(default_factory=dict)
     medians_at: float = 0.0
     tasks: set = field(default_factory=set)
+    fill_task: Any = None
     orders_cache: list | None = None
     orders_at: float = 0.0
 
-    def spawn(self, coro) -> None:
+    def spawn(self, coro):
         t = asyncio.create_task(coro)
         self.tasks.add(t)
         t.add_done_callback(self.tasks.discard)
+        return t
 
 
 async def build_state() -> AppState:
@@ -382,7 +384,7 @@ def create_app(
         S(request).inventory.set_enabled(body.enabled)
         return {"enabled": body.enabled}
 
-    async def _fill(st: AppState, max_age_s: float, targets=None):
+    async def _fill(st: AppState, max_age_s: float, targets=None, job: int = 0):
         def progress(done, total):
             st.fill.update(done=done, total=total)
 
@@ -398,17 +400,24 @@ def create_app(
         except Exception as e:
             log.warning("price fill failed: %s", type(e).__name__)
         finally:
-            st.fill["running"] = False
+            if st.fill.get("job") == job:  # an interrupted job must not mark its successor as done
+                st.fill["running"] = False
 
     def _start_fill(st: AppState, reset_medians: bool = False, max_age_s: float = config.INVENTORY_PRICE_FRESH_S,
-                    targets=None) -> None:
-        if st.fill["running"] or not st.http:
+                    targets=None, preempt: bool = False) -> None:
+        if not st.http:
             return
+        if st.fill["running"]:
+            if not preempt:
+                return
+            if st.fill_task is not None:
+                st.fill_task.cancel()  # a fresh inventory load beats background re-checks
         if reset_medians or time.monotonic() - st.medians_at > MEDIAN_TTL_S:
             st.medians.clear()
             st.medians_at = time.monotonic()
-        st.fill.update(running=True, done=0, total=0)  # set before the task runs: no double start
-        st.spawn(_fill(st, max_age_s, targets))
+        job = st.fill.get("job", 0) + 1
+        st.fill.update(running=True, done=0, total=0, job=job)  # set before the task runs: no double start
+        st.fill_task = st.spawn(_fill(st, max_age_s, targets, job))
 
     @app.post("/api/inventory/load")
     async def inventory_load(request: Request):
@@ -433,7 +442,7 @@ def create_app(
             else:
                 msg = f"Сервер игры недоступен, повторите через {wait} с."
             return err(409, msg)
-        _start_fill(st, reset_medians=True)
+        _start_fill(st, reset_medians=True, preempt=True)
         return {"items": len(items), "rivens": len(rivens)}
 
     @app.post("/api/sell/prices")

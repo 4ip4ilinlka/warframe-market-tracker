@@ -131,7 +131,7 @@ def select_targets(
         snap = db.price_latest(slug, rank)
         if max_age_s <= 0 or snap is None or snap.at < fresh_after:
             out.append((slug, rank))
-    out.sort(key=lambda k: _PRIORITY[category_of(catalog.by_slug(k[0]).tags)])
+    out.sort(key=lambda k: (db.price_latest(*k) is not None, _PRIORITY[category_of(catalog.by_slug(k[0]).tags)]))
     return out
 
 
@@ -161,11 +161,11 @@ def auto_targets(
         limit = config.HOT_PRICE_FRESH_S if key in hot else config.INVENTORY_PRICE_FRESH_S
         if snap is None or (now - snap.at).total_seconds() > limit:
             out.append(key)
-    out.sort(key=lambda k: (k not in hot, _PRIORITY[category_of(catalog.by_slug(k[0]).tags)]))
+    out.sort(key=lambda k: (db.price_latest(*k) is not None, k not in hot, _PRIORITY[category_of(catalog.by_slug(k[0]).tags)]))
     return out
 
 
-# Most valuable categories get their prices first.
+# Order of every price job: items without any price first, then the most valuable categories.
 _PRIORITY = {"mod": 0, "arcane": 1, "prime": 2, "relic": 3, "other": 4}
 
 
@@ -181,7 +181,7 @@ def price_targets(
         snap = db.price_latest(slug, rank)
         if snap is None or snap.at < fresh_after:
             out.append((slug, rank))
-    out.sort(key=lambda k: _PRIORITY[category_of(catalog.by_slug(k[0]).tags)])
+    out.sort(key=lambda k: (db.price_latest(*k) is not None, _PRIORITY[category_of(catalog.by_slug(k[0]).tags)]))
     return out
 
 

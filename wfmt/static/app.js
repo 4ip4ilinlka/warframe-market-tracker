@@ -384,7 +384,13 @@ async function refreshSellPrices() {
   setTimeout(loadSell, 1500);
 }
 
+function showSkeleton() {
+  if (sellData) return;
+  $("#sell-list").replaceChildren(...Array.from({ length: 6 }, () => h("div", { class: "skeleton" })));
+}
+
 async function loadSell() {
+  showSkeleton();
   await loadStatus();
   const on = status.inventory_enabled;
   $("#inv-disabled").hidden = on;
@@ -406,13 +412,42 @@ function statTile(cls, icon, label, value, note) {
     note ? h("div", { class: "note" }, note) : null);
 }
 
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const lastShown = new Map();
+function countUp(el, key, target) {
+  const from = lastShown.get(key) ?? 0;
+  lastShown.set(key, target);
+  if (reduceMotion || from === target) { el.textContent = fmt(target); return; }
+  const t0 = performance.now(), dur = 600;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmt(from + (target - from) * e);
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function heroTile(d, total) {
+  const byCat = {};
+  for (const r of d.rows) byCat[r.category] = (byCat[r.category] || 0) + (r.total || 0);
+  const num = h("span", {});
+  countUp(num, "total", total);
+  const parts = CAT_ORDER.filter(c => byCat[c] > 0);
+  return h("div", { class: "stat hero" },
+    h("div", { class: "label" }, svg("box"), "В инвентаре", h("span", { class: "dim", style: "margin-left:auto" }, `${d.rows.length} видов`)),
+    h("div", { class: "value" }, num, svg("platinum", "plat-ico")),
+    h("div", { class: "catbar", "aria-hidden": "true" }, parts.map(c =>
+      h("span", { class: `c-${c}`, style: `width:${(byCat[c] / Math.max(total, 1)) * 100}%`, title: `${CAT_LABELS[c]}: ${fmt(byCat[c])}` }))),
+    h("div", { class: "legend" }, parts.map(c => h("span", {}, h("i", { class: `c-${c}` }), CAT_LABELS[c], h("b", {}, fmt(byCat[c]))))));
+}
+
 function renderStats(d) {
   const total = d.rows.reduce((s, r) => s + (r.total || 0), 0);
   const listedSum = (d.listings_summary || {}).platinum || 0;
   const listedLots = (d.listings_summary || {}).lots || 0;
   const unlisted = d.rows.filter(r => !r.listed).reduce((s, r) => s + (r.total || 0), 0);
   $("#inv-stats").replaceChildren(
-    statTile("", "box", "В инвентаре", fmt(total), `${d.rows.length} видов предметов`),
+    heroTile(d, total),
     statTile("on-sale", "shop", "На продаже", fmt(listedSum), status.signed_in ? `${listedLots} лотов` : "войдите во вкладке «Мои лоты»"),
     statTile("", "tag", "Можно выставить", fmt(unlisted), "по типичной цене"));
 }
@@ -474,10 +509,15 @@ function renderSell() {
   $("#inv-fill").hidden = !fill.running;
   if (fill.running) {
     const pct = fill.total ? Math.round((fill.done / fill.total) * 100) : 0;
-    $("#inv-fill .bar span").style.width = (fill.total ? pct : 4) + "%";
-    $("#inv-fill .label").textContent = fill.total
-      ? `Загружаю цены: ${pct}%. Сначала самые ценные категории.`
-      : "Оцениваю моды разлома по похожим лотам…";
+    $("#inv-fill .bar span").style.width = (fill.total ? Math.max(pct, 2) : 4) + "%";
+    const unpriced = d.rows.filter(r => r.unit_price == null).length;
+    $("#inv-fill .fill-title").textContent = fill.total ? `Загружаю цены · ${pct}%` : "Оцениваю моды разлома по похожим лотам";
+    const left = fill.total ? Math.max(0, fill.total - fill.done) : 0;
+    const secs = Math.round(left / 2.5);
+    $("#inv-fill .fill-eta").textContent = fill.total ? `осталось ≈ ${secs < 90 ? `${secs} с` : `${Math.round(secs / 60)} мин`}` : "";
+    $("#inv-fill .fill-sub").textContent = unpriced
+      ? `Без цены ещё ${unpriced} предметов — они загружаются первыми, уже оценённые не трогаются.`
+      : "Все предметы оценены, уточняю медианы сделок.";
   }
   sellMaxTotal = Math.max(1, ...d.rows.map(r => r.total || 0));
   const list = $("#sell-list");

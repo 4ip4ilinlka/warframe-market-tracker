@@ -338,3 +338,38 @@ def test_refresh_prices_by_subcategory(client, state):
     assert r["items"] == 0 and spawned == []
     r = client.post("/api/sell/prices", json={"subs": ["prime:other"], "force": True}).json()
     assert r["items"] == 1 and len(spawned) == 1
+
+
+def test_inventory_load_interrupts_background_refresh(client, state):
+    import asyncio
+
+    class OkLoader(FakeLoader):
+        async def fetch(self):
+            return [], []
+
+    class FakeHttp:
+        async def aclose(self):
+            pass
+
+    class FakeTask:
+        cancelled = False
+
+        def cancel(self):
+            self.cancelled = True
+
+    state.http = FakeHttp()
+    state.inventory = OkLoader()
+    old = FakeTask()
+    state.fill.update(running=True)
+    state.fill_task = old
+    spawned = []
+
+    def spawn(coro):
+        spawned.append(coro)
+        coro.close()
+        return FakeTask()
+
+    state.spawn = spawn
+    assert client.post("/api/inventory/load").status_code == 200
+    assert old.cancelled
+    assert len(spawned) == 1  # a new price job for the freshly loaded inventory
