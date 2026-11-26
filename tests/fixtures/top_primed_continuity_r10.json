@@ -1,0 +1,220 @@
+{
+ "apiVersion": "0.25.0",
+ "data": {
+  "sell": [
+   {
+    "id": "6b06b1e49703a8846cf75d06",
+    "type": "sell",
+    "platinum": 100,
+    "quantity": 1,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-11-25T10:01:08Z",
+    "updatedAt": "2026-11-25T10:01:08Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000001",
+     "ingameName": "player1",
+     "slug": "player1",
+     "reputation": 1,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6a5520292202c9dc0ae8ffc1",
+    "type": "sell",
+    "platinum": 110,
+    "quantity": 2,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-07-13T17:28:09Z",
+    "updatedAt": "2026-11-24T23:44:36Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000002",
+     "ingameName": "player2",
+     "slug": "player2",
+     "reputation": 14,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6aff99d090780835bce52ad7",
+    "type": "sell",
+    "platinum": 110,
+    "quantity": 6,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-11-20T00:52:32Z",
+    "updatedAt": "2026-11-20T00:52:32Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000003",
+     "ingameName": "player3",
+     "slug": "player3",
+     "reputation": 52,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6ab5f64a9703a8846ca54662",
+    "type": "sell",
+    "platinum": 110,
+    "quantity": 4,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-09-25T04:19:22Z",
+    "updatedAt": "2026-11-25T10:26:16Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000004",
+     "ingameName": "player4",
+     "slug": "player4",
+     "reputation": 42,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6afd70279703a8846ceff7c7",
+    "type": "sell",
+    "platinum": 110,
+    "quantity": 1,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-11-18T09:30:15Z",
+    "updatedAt": "2026-11-25T10:24:41Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000005",
+     "ingameName": "player5",
+     "slug": "player5",
+     "reputation": 5,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   }
+  ],
+  "buy": [
+   {
+    "id": "6ae9e9d690780835bccea776",
+    "type": "buy",
+    "platinum": 83,
+    "quantity": 1,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-11-03T14:04:06Z",
+    "updatedAt": "2026-11-23T12:41:47Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000006",
+     "ingameName": "player6",
+     "slug": "player6",
+     "reputation": 8,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6af14be99703a8846ce53a11",
+    "type": "buy",
+    "platinum": 61,
+    "quantity": 2,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-11-09T04:28:25Z",
+    "updatedAt": "2026-11-24T07:27:49Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000007",
+     "ingameName": "player7",
+     "slug": "player7",
+     "reputation": 85,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6acbe40f9703a8846cbe7b1a",
+    "type": "buy",
+    "platinum": 50,
+    "quantity": 1,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-10-11T19:31:27Z",
+    "updatedAt": "2026-10-17T02:32:16Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000008",
+     "ingameName": "player8",
+     "slug": "player8",
+     "reputation": 67,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6663724a94543215735e1b96",
+    "type": "buy",
+    "platinum": 50,
+    "quantity": 10,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2024-06-07T20:49:14Z",
+    "updatedAt": "2024-12-07T21:07:48Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "000000000000000000000009",
+     "ingameName": "player9",
+     "slug": "player9",
+     "reputation": 1394,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   },
+   {
+    "id": "6aae9c8f90780835bc88c563",
+    "type": "buy",
+    "platinum": 35,
+    "quantity": 6,
+    "perTrade": 1,
+    "rank": 10,
+    "visible": true,
+    "createdAt": "2026-09-19T14:30:39Z",
+    "updatedAt": "2026-11-20T11:28:52Z",
+    "itemId": "54c6855ee779891362942572",
+    "user": {
+     "id": "00000000000000000000000a",
+     "ingameName": "player10",
+     "slug": "player10",
+     "reputation": 47,
+     "platform": "pc",
+     "crossplay": true,
+     "status": "ingame"
+    }
+   }
+  ]
+ },
+ "error": null
+}

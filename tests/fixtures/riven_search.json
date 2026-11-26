@@ -1,0 +1,166 @@
+{
+ "payload": {
+  "auctions": [
+   {
+    "starting_price": 40,
+    "buyout_price": 40,
+    "note": "",
+    "visible": true,
+    "minimal_reputation": 0,
+    "platform": "pc",
+    "crossplay": true,
+    "closed": false,
+    "top_bid": null,
+    "is_marked_for": null,
+    "marked_operation_at": null,
+    "created": "2026-11-16T01:07:32.000+00:00",
+    "updated": "2026-11-16T01:07:32.000+00:00",
+    "note_raw": "",
+    "is_direct_sell": true,
+    "id": "6afa575487ad1a02bc3f92bf",
+    "owner": {
+     "reputation": 2,
+     "platform": "pc",
+     "ingame_name": "player1",
+     "slug": "player1",
+     "crossplay": true,
+     "status": "offline",
+     "id": "000000000000000000000001"
+    },
+    "winner": null,
+    "item": {
+     "re_rolls": 0,
+     "polarity": "vazarin",
+     "weapon_url_name": "phenmor",
+     "mod_rank": 0,
+     "name": "hexatis",
+     "type": "riven",
+     "attributes": [
+      {
+       "value": 14.9,
+       "positive": true,
+       "url_name": "status_chance"
+      },
+      {
+       "value": 19.5,
+       "positive": true,
+       "url_name": "critical_damage"
+      },
+      {
+       "value": -3.0,
+       "positive": false,
+       "url_name": "ammo_maximum"
+      }
+     ],
+     "mastery_level": 12
+    },
+    "private": false
+   },
+   {
+    "note": "",
+    "buyout_price": 40,
+    "minimal_reputation": 0,
+    "visible": true,
+    "starting_price": 40,
+    "platform": "pc",
+    "crossplay": true,
+    "closed": false,
+    "top_bid": null,
+    "is_marked_for": null,
+    "marked_operation_at": null,
+    "created": "2026-11-24T19:49:55.000+00:00",
+    "updated": "2026-11-24T19:49:55.000+00:00",
+    "note_raw": "",
+    "is_direct_sell": true,
+    "id": "6b05ea63e7f57b0491b66a4c",
+    "owner": {
+     "reputation": 4,
+     "platform": "pc",
+     "crossplay": true,
+     "ingame_name": "player2",
+     "slug": "player2",
+     "status": "offline",
+     "id": "000000000000000000000002"
+    },
+    "winner": null,
+    "item": {
+     "mod_rank": 0,
+     "mastery_level": 13,
+     "type": "riven",
+     "re_rolls": 0,
+     "polarity": "madurai",
+     "weapon_url_name": "phenmor",
+     "attributes": [
+      {
+       "value": 16.9,
+       "positive": true,
+       "url_name": "slash_damage"
+      },
+      {
+       "value": 13.0,
+       "positive": true,
+       "url_name": "status_chance"
+      }
+     ],
+     "name": "hexasus"
+    },
+    "private": false
+   },
+   {
+    "starting_price": 40,
+    "buyout_price": 40,
+    "note": "",
+    "visible": true,
+    "minimal_reputation": 0,
+    "platform": "pc",
+    "crossplay": true,
+    "closed": false,
+    "top_bid": null,
+    "is_marked_for": null,
+    "marked_operation_at": null,
+    "created": "2026-11-24T23:14:38.000+00:00",
+    "updated": "2026-11-24T23:14:38.000+00:00",
+    "note_raw": "",
+    "is_direct_sell": true,
+    "id": "6b061a5e87ad1a04988c9ac5",
+    "owner": {
+     "reputation": 23,
+     "platform": "pc",
+     "crossplay": true,
+     "ingame_name": "player3",
+     "slug": "player3",
+     "status": "offline",
+     "id": "000000000000000000000003"
+    },
+    "winner": null,
+    "item": {
+     "re_rolls": 0,
+     "polarity": "naramon",
+     "weapon_url_name": "phenmor",
+     "mod_rank": 0,
+     "name": "fevamag",
+     "type": "riven",
+     "attributes": [
+      {
+       "value": -14.6,
+       "positive": true,
+       "url_name": "recoil"
+      },
+      {
+       "value": 8.6,
+       "positive": true,
+       "url_name": "reload_speed"
+      },
+      {
+       "value": -7.4,
+       "positive": false,
+       "url_name": "critical_damage"
+      }
+     ],
+     "mastery_level": 16
+    },
+    "private": false
+   }
+  ]
+ }
+}

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>WF Market Tracker</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"></span>WF Market Tracker</div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="inventory" aria-selected="true">Что продать</button>
+    <button role="tab" data-tab="orders">Мои лоты</button>
+    <button role="tab" data-tab="watch">Отслеживание</button>
+    <button role="tab" data-tab="rivens">Моды разлома</button>
+    <button role="tab" data-tab="alerts">Уведомления</button>
+  </nav>
+  <div class="status" id="status"></div>
+  <button class="ghost small" id="quit" title="Остановить программу">Выход</button>
+</header>
+
+<main>
+  <!-- Inventory / sell -->
+  <section id="tab-inventory" class="tab">
+    <div id="inv-disabled" class="panel warn" hidden>
+      <h2>Загрузка инвентаря выключена</h2>
+      <p>Чтобы узнать, что у вас есть, программа по нажатию кнопки читает из памяти запущенной игры данные текущей сессии и один раз запрашивает инвентарь у серверов Warframe — так же, как делает сама игра. Память только читается, ничего не меняется и не сохраняется.</p>
+      <p>Формально это нарушает правила игры. Риск бана небольшой (так работают AlecaFrame и похожие программы), но не нулевой.</p>
+      <button class="primary" id="inv-enable">Понимаю, включить</button>
+    </div>
+    <div id="inv-enabled" hidden>
+      <div class="stats" id="inv-stats"></div>
+      <div class="toolbar">
+        <div class="chips" id="inv-status-chips" role="group" aria-label="Статус">
+          <button class="chip" data-status="" aria-pressed="true">Все</button>
+          <button class="chip" data-status="unlisted" aria-pressed="false">Не выставлено</button>
+          <button class="chip" data-status="listed" aria-pressed="false">На продаже</button>
+        </div>
+        <div class="chips" id="inv-cat-chips" role="group" aria-label="Тип">
+          <button class="chip" data-cat="" aria-pressed="true">Всё</button>
+          <button class="chip" data-cat="prime" aria-pressed="false">Прайм</button>
+          <button class="chip" data-cat="mod" aria-pressed="false">Моды</button>
+          <button class="chip" data-cat="arcane" aria-pressed="false">Мистификаторы</button>
+          <button class="chip" data-cat="relic" aria-pressed="false">Реликвии</button>
+          <button class="chip" data-cat="other" aria-pressed="false">Прочее</button>
+        </div>
+        <span class="spacer"></span>
+        <select id="inv-sort" aria-label="Сортировка">
+          <option value="total:desc">Итого: сначала дорогое</option>
+          <option value="total:asc">Итого: сначала дешёвое</option>
+          <option value="unit:desc">Цена за шт.: дорогие</option>
+          <option value="unit:asc">Цена за шт.: дешёвые</option>
+          <option value="market:desc">Мин. на рынке: дорогие</option>
+          <option value="market:asc">Мин. на рынке: дешёвые</option>
+          <option value="count:desc">Количество: больше</option>
+          <option value="count:asc">Количество: меньше</option>
+          <option value="name:asc">Название: А → Я</option>
+          <option value="name:desc">Название: Я → А</option>
+        </select>
+        <input id="inv-search" type="search" placeholder="Найти в инвентаре" autocomplete="off">
+      </div>
+      <div class="chips sub-chips" id="inv-sub-chips" role="group" aria-label="Подкатегория" hidden></div>
+      <div class="toolbar sub">
+        <button class="primary" id="inv-load">Загрузить инвентарь</button>
+        <button class="ghost" id="sell-refresh" aria-haspopup="dialog">Обновить цены…</button>
+        <span class="hint" id="inv-info"></span>
+        <span class="spacer"></span>
+        <button class="ghost small" id="inv-disable">Выключить загрузку</button>
+      </div>
+      <div class="progress" id="inv-fill" hidden><div class="bar"><span></span></div><span class="label"></span></div>
+      <div class="list" id="sell-list"></div>
+      <button class="ghost more" id="sell-more" hidden>Показать ещё</button>
+      <p class="empty" id="sell-empty" hidden>Инвентарь ещё не загружен. Запустите Warframe, войдите в аккаунт и нажмите «Загрузить инвентарь».</p>
+      <details class="unmatched" id="inv-unmatched" hidden><summary></summary><div class="groups"></div></details>
+      <h2 class="sub" id="inv-rivens-title" hidden>Моды разлома в инвентаре</h2>
+      <div class="list" id="inv-rivens"></div>
+    </div>
+  </section>
+
+  <!-- Orders -->
+  <section id="tab-orders" class="tab" hidden>
+    <div id="signin" class="panel narrow" hidden>
+      <h2>Вход на warframe.market</h2>
+      <form id="signin-form">
+        <label>Эл. почта или ник<input id="signin-email" autocomplete="username" required></label>
+        <label>Пароль<input id="signin-password" type="password" autocomplete="current-password" required></label>
+        <button class="primary" type="submit">Войти</button>
+        <p class="hint">Пароль отправляется только на warframe.market и нигде не сохраняется. Программа хранит только зашифрованный токен входа.</p>
+      </form>
+      <details id="token-box">
+        <summary>Войти токеном из браузера</summary>
+        <ol class="steps">
+          <li>Откройте warframe.market в браузере и войдите в аккаунт.</li>
+          <li>Нажмите F12, вкладка «Application» (или «Хранилище»), раздел Cookies → https://warframe.market.</li>
+          <li>Скопируйте значение строки <b>JWT</b> и вставьте ниже.</li>
+        </ol>
+        <form id="token-form">
+          <input id="token" placeholder="Значение JWT" autocomplete="off" required>
+          <button class="primary" type="submit">Войти токеном</button>
+        </form>
+      </details>
+      <p class="error" id="signin-error" hidden></p>
+    </div>
+    <div id="orders-box" hidden>
+      <div class="toolbar">
+        <span class="account" id="account-name"></span>
+        <span class="spacer"></span>
+        <select id="orders-sort" aria-label="Сортировка лотов">
+          <option value="name:asc">Название: А → Я</option>
+          <option value="name:desc">Название: Я → А</option>
+          <option value="price:desc">Цена: дорогие</option>
+          <option value="price:asc">Цена: дешёвые</option>
+          <option value="total:desc">Сумма лота: больше</option>
+          <option value="diff:desc">Сильнее всего дороже рынка</option>
+        </select>
+        <button class="ghost" id="orders-refresh">Обновить</button>
+        <button class="ghost small" id="signout">Выйти</button>
+      </div>
+      <div class="cards" id="orders-list"></div>
+      <p class="empty" id="orders-empty" hidden>Активных лотов нет. Выставить предмет можно со вкладки «Что продать».</p>
+    </div>
+  </section>
+
+  <!-- Watch list -->
+  <section id="tab-watch" class="tab" hidden>
+    <div class="toolbar">
+      <div class="search">
+        <input id="search" type="search" placeholder="Добавить предмет: название на русском или английском" autocomplete="off">
+        <ul id="search-results" class="dropdown" hidden></ul>
+      </div>
+      <select id="watch-sort" aria-label="Сортировка">
+        <option value="added:asc">В порядке добавления</option>
+        <option value="name:asc">Название: А → Я</option>
+        <option value="name:desc">Название: Я → А</option>
+        <option value="price:desc">Цена: дорогие</option>
+        <option value="price:asc">Цена: дешёвые</option>
+        <option value="change:asc">Сильнее всего подешевели</option>
+        <option value="change:desc">Сильнее всего подорожали</option>
+      </select>
+      <button class="ghost" id="refresh-prices">Обновить цены</button>
+    </div>
+    <div class="list" id="watch-list"></div>
+    <p class="empty" id="watch-empty" hidden>Список пуст. Найдите предмет в поле выше, чтобы следить за его ценой.</p>
+  </section>
+
+  <!-- Rivens -->
+  <section id="tab-rivens" class="tab" hidden>
+    <form id="riven-form" class="panel riven-form">
+      <label class="wide">Оружие
+        <input id="riven-weapon" list="riven-weapons" placeholder="Начните вводить название" required autocomplete="off">
+        <datalist id="riven-weapons"></datalist>
+      </label>
+      <label>Плюс 1<select class="riven-pos"></select></label>
+      <label>Плюс 2<select class="riven-pos"></select></label>
+      <label>Плюс 3<select class="riven-pos"></select></label>
+      <label>Минус<select id="riven-neg"></select></label>
+      <label>Цена до<input id="riven-max" type="number" min="1" placeholder="любая"></label>
+      <label class="check"><input id="riven-notify" type="checkbox" checked> Уведомлять о новых</label>
+      <button class="primary" type="submit">Следить</button>
+    </form>
+    <p class="hint" id="riven-interval"></p>
+    <div id="riven-watches"></div>
+    <p class="empty" id="riven-empty" hidden>Выберите оружие и нужные характеристики, чтобы видеть самые дешёвые лоты с выкупом.</p>
+  </section>
+
+  <!-- Alerts -->
+  <section id="tab-alerts" class="tab" hidden>
+    <form id="alert-form" class="panel riven-form">
+      <label class="wide">Предмет из отслеживания<select id="alert-item" required></select></label>
+      <label>Условие<select id="alert-kind">
+        <option value="price_below">Мин. цена не выше</option>
+        <option value="price_above">Мин. цена не ниже</option>
+        <option value="median_below">Медиана не выше</option>
+        <option value="median_above">Медиана не ниже</option>
+      </select></label>
+      <label>Платина<input id="alert-threshold" type="number" min="1" required></label>
+      <button class="primary" type="submit">Добавить</button>
+    </form>
+    <p class="hint">Уведомления показываются в углу экрана Windows и никуда не отправляются. «Мин. цена» — самый дешёвый лот прямо сейчас, «медиана» — типичная цена сделок за 48 часов. Уведомления о модах разлома включаются галочкой при добавлении оружия.</p>
+    <div class="list" id="alerts-list"></div>
+    <p class="empty" id="alerts-empty" hidden>Правил пока нет.</p>
+  </section>
+</main>
+
+<dialog id="order-dialog">
+  <form id="order-form" method="dialog">
+    <div class="dialog-head" id="order-head"></div>
+    <p class="hint" id="order-market"></p>
+    <div class="row">
+      <label>Цена за шт., пл.<input id="order-price" type="number" min="1" required></label>
+      <label>Количество<input id="order-qty" type="number" min="1" required></label>
+      <label id="order-rank-box">Ранг<input id="order-rank" type="number" min="0"></label>
+    </div>
+    <label class="check"><input id="order-visible" type="checkbox" checked> Сразу показывать покупателям</label>
+    <p class="error" id="order-error" hidden></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="order-cancel">Отмена</button>
+      <button type="submit" class="primary" id="order-submit">Выставить на продажу</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="refresh-dialog" aria-label="Обновление цен">
+  <form method="dialog" id="refresh-form">
+    <h2>Обновить цены</h2>
+    <p class="hint">Отметьте, какие цены обновить. Автоматически программа обновляет всё раз в час, а выставленное на продажу и 50 самых ценных предметов — каждые 10 минут.</p>
+    <div class="tree" id="refresh-tree"></div>
+    <div class="refresh-mode">
+      <label class="check"><input type="radio" name="mode" value="stale" checked> Только устаревшие (старше 30 минут)</label>
+      <label class="check"><input type="radio" name="mode" value="force"> Всё выбранное заново</label>
+    </div>
+    <p class="hint" id="refresh-estimate"></p>
+    <div class="actions">
+      <button type="button" class="ghost" id="refresh-all">Выбрать всё</button>
+      <span class="spacer"></span>
+      <button type="button" class="ghost" id="refresh-cancel">Отмена</button>
+      <button type="submit" class="primary" id="refresh-go">Обновить</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="item-drawer" class="drawer" aria-label="Карточка предмета">
+  <div class="drawer-body" id="drawer-body"></div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

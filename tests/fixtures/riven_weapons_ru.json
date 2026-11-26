@@ -1,0 +1,67 @@
+{
+ "data": [
+  {
+   "id": "5c5ca81696e8d2003834fdcc",
+   "slug": "kulstar",
+   "gameRef": "/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol",
+   "group": "secondary",
+   "rivenType": "pistol",
+   "disposition": 1.3,
+   "reqMasteryRank": 5,
+   "i18n": {
+    "ru": {
+     "name": "Кулстар",
+     "icon": "items/images/en/kulstar.92736ca911a3b84f99bc9e50f24369f0.png",
+     "thumb": "items/images/en/thumbs/kulstar.92736ca911a3b84f99bc9e50f24369f0.128x128.png"
+    },
+    "en": {
+     "name": "Kulstar",
+     "icon": "items/images/en/kulstar.92736ca911a3b84f99bc9e50f24369f0.png",
+     "thumb": "items/images/en/thumbs/kulstar.92736ca911a3b84f99bc9e50f24369f0.128x128.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81696e8d2003834fd90",
+   "slug": "rubico",
+   "gameRef": "/Lotus/Weapons/Tenno/LongGuns/FiveShotSniper/FiveShotSniper",
+   "group": "primary",
+   "rivenType": "rifle",
+   "disposition": 0.95,
+   "reqMasteryRank": 6,
+   "i18n": {
+    "ru": {
+     "name": "Рубико",
+     "icon": "items/images/en/rubico.19654c8831d70f150f84be3f69b35a15.png",
+     "thumb": "items/images/en/thumbs/rubico.19654c8831d70f150f84be3f69b35a15.128x128.png"
+    },
+    "en": {
+     "name": "Rubico",
+     "icon": "items/images/en/rubico.19654c8831d70f150f84be3f69b35a15.png",
+     "thumb": "items/images/en/thumbs/rubico.19654c8831d70f150f84be3f69b35a15.128x128.png"
+    }
+   }
+  },
+  {
+   "id": "626a197ef40db600660a1d93",
+   "slug": "phenmor",
+   "gameRef": "/Lotus/Weapons/Tenno/Zariman/LongGuns/SemiAutoRifle/ZarimanSemiAutoRifle",
+   "group": "primary",
+   "rivenType": "rifle",
+   "disposition": 0.6,
+   "reqMasteryRank": 14,
+   "i18n": {
+    "en": {
+     "name": "Phenmor",
+     "icon": "items/images/en/phenmor.4fa10f6dededc5af9b3515370302432a.png",
+     "thumb": "items/images/en/thumbs/phenmor.4fa10f6dededc5af9b3515370302432a.128x128.png"
+    },
+    "ru": {
+     "name": "Фенмор",
+     "icon": "items/images/en/phenmor.4fa10f6dededc5af9b3515370302432a.png",
+     "thumb": "items/images/en/thumbs/phenmor.4fa10f6dededc5af9b3515370302432a.128x128.png"
+    }
+   }
+  }
+ ]
+}

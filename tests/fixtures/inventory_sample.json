@@ -1,0 +1,22 @@
+{
+  "MiscItems": [
+    {"ItemType": "/Lotus/Types/Recipes/Weapons/WeaponParts/SomaPrimeReceiver", "ItemCount": 2},
+    {"ItemType": "/Lotus/Types/Items/MiscItems/OrokinCell", "ItemCount": 120}
+  ],
+  "Recipes": [
+    {"ItemType": "/Lotus/Types/Recipes/WarframeRecipes/AshPrimeSystemsBlueprint", "ItemCount": 3}
+  ],
+  "RawUpgrades": [
+    {"ItemType": "/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedCritChanceFireRatePistol", "ItemCount": 4},
+    {"ItemType": "/Lotus/Upgrades/Mods/Randomized/RawRifleRandomMod", "ItemCount": 1}
+  ],
+  "Upgrades": [
+    {"ItemType": "/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedCritChanceFireRatePistol", "UpgradeFingerprint": "{\"lvl\":5}", "ItemId": {"$oid": "a1"}},
+    {"ItemType": "/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedCritChanceFireRatePistol", "UpgradeFingerprint": "{\"lvl\":5}", "ItemId": {"$oid": "a2"}},
+    {"ItemType": "/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedCritChanceFireRatePistol", "UpgradeFingerprint": "{\"lvl\":2}", "ItemId": {"$oid": "a3"}},
+    {"ItemType": "/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare", "UpgradeFingerprint": "{\"compat\":\"/Lotus/Weapons/Grineer/Pistols/GrnTorpedoPistol/GrnTorpedoPistol\",\"lim\":0,\"lvlReq\":11,\"lvl\":8,\"rerolls\":4,\"pol\":\"AP_ATTACK\",\"buffs\":[{\"Tag\":\"WeaponCritChanceMod\",\"Value\":536870911},{\"Tag\":\"WeaponCritDamageMod\",\"Value\":1073741823}],\"curses\":[{\"Tag\":\"WeaponZoomFovMod\",\"Value\":268435455}]}", "ItemId": {"$oid": "r1"}}
+  ],
+  "FusionTreasures": [
+    {"ItemType": "/Lotus/Types/Items/FusionTreasures/OroFusexOrnamentB", "ItemCount": 1, "Sockets": 0}
+  ]
+}

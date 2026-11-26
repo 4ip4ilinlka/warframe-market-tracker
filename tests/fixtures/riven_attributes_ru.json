@@ -1,0 +1,145 @@
+{
+ "data": [
+  {
+   "id": "5c5ca81a96e8d2003834fe78",
+   "slug": "punch_through",
+   "gameRef": "WeaponPunctureDepthMod",
+   "group": "default",
+   "prefix": "Lexi",
+   "suffix": "Nok",
+   "exclusiveTo": [
+    "archgun",
+    "kitgun",
+    "pistol",
+    "rifle",
+    "shotgun"
+   ],
+   "positiveOnly": true,
+   "i18n": {
+    "ru": {
+     "name": "К пронзанию навылет",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "en": {
+     "name": "Punch Through",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81a96e8d2003834fe7c",
+   "slug": "slash_damage",
+   "gameRef": "WeaponSlashDamageMod",
+   "group": "default",
+   "prefix": "Sci",
+   "suffix": "Sus",
+   "unit": "percent",
+   "i18n": {
+    "en": {
+     "name": "Slash",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "ru": {
+     "name": "Разрезающего урона",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81a96e8d2003834fe74",
+   "slug": "impact_damage",
+   "gameRef": "WeaponImpactDamageMod",
+   "group": "default",
+   "prefix": "Magna",
+   "suffix": "Ton",
+   "unit": "percent",
+   "i18n": {
+    "ru": {
+     "name": "Ударного урона",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "en": {
+     "name": "Impact",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81a96e8d2003834fe77",
+   "slug": "toxin_damage",
+   "gameRef": "WeaponToxinDamageMod",
+   "group": "default",
+   "prefix": "Toxi",
+   "suffix": "Tox",
+   "unit": "percent",
+   "positiveOnly": true,
+   "i18n": {
+    "en": {
+     "name": "Toxin",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "ru": {
+     "name": "Урона токсином",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81a96e8d2003834fe7e",
+   "slug": "status_duration",
+   "gameRef": "WeaponProcTimeMod",
+   "group": "default",
+   "prefix": "Deci",
+   "suffix": "Des",
+   "unit": "percent",
+   "i18n": {
+    "en": {
+     "name": "Status Duration",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "ru": {
+     "name": "К длительности статуса",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  },
+  {
+   "id": "5c5ca81a96e8d2003834fe63",
+   "slug": "ammo_maximum",
+   "gameRef": "WeaponAmmoMaxMod",
+   "group": "default",
+   "prefix": "Ampi",
+   "suffix": "Bin",
+   "exclusiveTo": [
+    "archgun",
+    "kitgun",
+    "pistol",
+    "rifle",
+    "shotgun"
+   ],
+   "unit": "percent",
+   "i18n": {
+    "en": {
+     "name": "Ammo Maximum",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    },
+    "ru": {
+     "name": "Максимум патронов",
+     "icon": "riven_attribute/unknown.png",
+     "thumb": "riven_attribute/unknown.thumb.png"
+    }
+   }
+  }
+ ]
+}

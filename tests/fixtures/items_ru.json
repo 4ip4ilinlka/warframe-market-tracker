@@ -1,0 +1,144 @@
+{
+ "apiVersion": "0.25.0",
+ "data": [
+  {
+   "id": "54ca39abe7798915c1c11e10",
+   "slug": "creeping_bullseye",
+   "gameRef": "/Lotus/Upgrades/Mods/Pistol/DualStat/CorruptedCritChanceFireRatePistol",
+   "tags": [
+    "mod",
+    "rare",
+    "pistol",
+    "secondary"
+   ],
+   "maxRank": 5,
+   "i18n": {
+    "en": {
+     "name": "Creeping Bullseye",
+     "icon": "items/images/en/creeping_bullseye.c2c011bdb9f6f49d3be586bd04bfb2d4.webp",
+     "thumb": "items/images/en/thumbs/creeping_bullseye.c2c011bdb9f6f49d3be586bd04bfb2d4.128x128.webp"
+    },
+    "ru": {
+     "name": "Мерзкое Прицеливание",
+     "icon": "items/images/en/creeping_bullseye.c2c011bdb9f6f49d3be586bd04bfb2d4.webp",
+     "thumb": "items/images/en/thumbs/creeping_bullseye.c2c011bdb9f6f49d3be586bd04bfb2d4.128x128.webp"
+    }
+   }
+  },
+  {
+   "id": "54c6855ee779891362942572",
+   "slug": "primed_continuity",
+   "gameRef": "/Lotus/Upgrades/Mods/Warframe/Expert/AvatarAbilityDurationModExpert",
+   "tags": [
+    "mod",
+    "legendary",
+    "warframe"
+   ],
+   "maxRank": 10,
+   "i18n": {
+    "ru": {
+     "name": "Непрерывность Прайм",
+     "icon": "items/images/en/primed_continuity.01e1ca7ecf998781fe999abb420035f0.webp",
+     "thumb": "items/images/en/thumbs/primed_continuity.01e1ca7ecf998781fe999abb420035f0.128x128.webp"
+    },
+    "en": {
+     "name": "Primed Continuity",
+     "icon": "items/images/en/primed_continuity.01e1ca7ecf998781fe999abb420035f0.webp",
+     "thumb": "items/images/en/thumbs/primed_continuity.01e1ca7ecf998781fe999abb420035f0.128x128.webp"
+    }
+   }
+  },
+  {
+   "id": "566751295dcbc186f0536bd1",
+   "slug": "arcane_energize",
+   "gameRef": "/Lotus/Upgrades/CosmeticEnhancers/Utility/GolemArcaneRadialEnergyOnEnergyPickup",
+   "tags": [
+    "legendary",
+    "arcane_enhancement"
+   ],
+   "bulkTradable": true,
+   "maxRank": 5,
+   "i18n": {
+    "ru": {
+     "name": "Мистическая Зарядка",
+     "icon": "items/images/en/arcane_energize.e5f85590ceb29db89c6753dfdf823485.png",
+     "thumb": "items/images/en/thumbs/arcane_energize.e5f85590ceb29db89c6753dfdf823485.128x128.png"
+    },
+    "en": {
+     "name": "Arcane Energize",
+     "icon": "items/images/en/arcane_energize.e5f85590ceb29db89c6753dfdf823485.png",
+     "thumb": "items/images/en/thumbs/arcane_energize.e5f85590ceb29db89c6753dfdf823485.128x128.png"
+    }
+   }
+  },
+  {
+   "id": "559daaafe779897b399db0fd",
+   "slug": "ash_prime_systems_blueprint",
+   "gameRef": "/Lotus/Types/Recipes/WarframeRecipes/AshPrimeSystemsBlueprint",
+   "tags": [
+    "component",
+    "prime",
+    "warframe",
+    "blueprint"
+   ],
+   "ducats": 65,
+   "i18n": {
+    "en": {
+     "name": "Ash Prime Systems Blueprint",
+     "icon": "items/images/en/ash_prime_systems.9f3f82bee82a9741531857cf76eb6594.png",
+     "thumb": "items/images/en/thumbs/ash_prime_systems.9f3f82bee82a9741531857cf76eb6594.128x128.png",
+     "subIcon": "sub_icons/warframe/prime_systems_128x128.png"
+    },
+    "ru": {
+     "name": "Эш Прайм: Система (Чертеж)",
+     "icon": "items/images/en/ash_prime_systems.9f3f82bee82a9741531857cf76eb6594.png",
+     "thumb": "items/images/en/thumbs/ash_prime_systems.9f3f82bee82a9741531857cf76eb6594.128x128.png",
+     "subIcon": "sub_icons/warframe/prime_systems_128x128.png"
+    }
+   }
+  },
+  {
+   "id": "56783f24cbfa8f0432dd898f",
+   "slug": "ash_prime_set",
+   "gameRef": "/Lotus/Powersuits/Ninja/AshPrime",
+   "tags": [
+    "set",
+    "prime",
+    "warframe"
+   ],
+   "ducats": 170,
+   "i18n": {
+    "ru": {
+     "name": "Эш Прайм: Комплект",
+     "icon": "items/images/en/ash_prime_set.9f3f82bee82a9741531857cf76eb6594.png",
+     "thumb": "items/images/en/thumbs/ash_prime_set.9f3f82bee82a9741531857cf76eb6594.128x128.png"
+    },
+    "en": {
+     "name": "Ash Prime Set",
+     "icon": "items/images/en/ash_prime_set.9f3f82bee82a9741531857cf76eb6594.png",
+     "thumb": "items/images/en/thumbs/ash_prime_set.9f3f82bee82a9741531857cf76eb6594.128x128.png"
+    }
+   }
+  },
+  {
+   "id": "54d4c727e77989281cc7d753",
+   "slug": "mutalist_alad_v_assassinate_key",
+   "gameRef": "/Lotus/Types/Keys/InfestedAladVQuest/AssassinateInfestedAladVKey",
+   "tags": [
+    "key"
+   ],
+   "i18n": {
+    "en": {
+     "name": "Mutalist Alad V Assassinate (Key)",
+     "icon": "items/images/en/mutalist_alad_v_assassinate_key.7540fb6d7ef2b2843352e32c9ff64e73.png",
+     "thumb": "items/images/en/thumbs/mutalist_alad_v_assassinate_key.7540fb6d7ef2b2843352e32c9ff64e73.128x128.png"
+    },
+    "ru": {
+     "name": "Заражённый Алад V - Убийство (Ключ)",
+     "icon": "items/images/en/mutalist_alad_v_assassinate_key.7540fb6d7ef2b2843352e32c9ff64e73.png",
+     "thumb": "items/images/en/thumbs/mutalist_alad_v_assassinate_key.7540fb6d7ef2b2843352e32c9ff64e73.128x128.png"
+    }
+   }
+  }
+ ]
+}
