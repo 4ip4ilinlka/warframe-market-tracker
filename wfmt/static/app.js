@@ -106,10 +106,28 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// Show a spinner on a button while an async action runs; flash on success.
+async function busy(btn, fn) {
+  if (!btn || btn.classList.contains("busy")) return;
+  btn.classList.add("busy");
+  btn.disabled = true;
+  try {
+    const r = await fn();
+    btn.classList.add("done-flash");
+    setTimeout(() => btn.classList.remove("done-flash"), 900);
+    return r;
+  } finally {
+    btn.classList.remove("busy");
+    btn.disabled = false;
+  }
+}
+
 let toastTimer;
 function toast(msg, isErr = false) {
   const t = $("#toast");
-  t.replaceChildren(svg(isErr ? "alert" : "check"), h("span", {}, msg));
+  t.classList.remove("show");
+  void t.offsetWidth; // restart the timer animation
+  t.replaceChildren(svg(isErr ? "alert" : "check"), h("span", {}, msg), h("span", { class: "timer" }));
   t.classList.toggle("err", isErr);
   t.classList.add("show");
   clearTimeout(toastTimer);
@@ -210,9 +228,20 @@ const itemUrl = slug => `${MARKET}/items/${slug}`;
 
 // ---------- tabs ----------
 let currentTab = "inventory";
+const tabInk = h("span", { class: "tab-ink", "aria-hidden": "true" });
+$(".tabs").append(tabInk);
+function moveInk() {
+  const b = $(`.tabs button[aria-selected="true"]`);
+  if (!b) return;
+  tabInk.style.left = `${b.offsetLeft + 12}px`;
+  tabInk.style.width = `${b.offsetWidth - 24}px`;
+}
+window.addEventListener("resize", moveInk);
+
 function showTab(name) {
   currentTab = name;
   for (const b of $$(".tabs button")) b.setAttribute("aria-selected", b.dataset.tab === name ? "true" : "false");
+  moveInk();
   for (const s of $$(".tab")) s.hidden = s.id !== `tab-${name}`;
   try { localStorage.setItem("tab", name); } catch { /* ignore */ }
   refreshTab();
@@ -229,6 +258,7 @@ async function loadStatus() {
   const el = $("#status");
   el.replaceChildren();
   const sch = status.scheduler || {};
+  if (status.fill && status.fill.running) el.append(h("span", { class: "live-dot", title: "Идёт загрузка цен" }));
   el.append(`Цены обновлены ${ago(sch.last_price_refresh)}`);
   if (sch.last_error && sch.last_error_at && Date.now() - new Date(sch.last_error_at) < 10 * 60 * 1000) {
     el.append(" · ", h("span", { class: "err", title: sch.last_error }, "маркет отвечает с ошибками"));
@@ -266,27 +296,24 @@ $("#order-form").addEventListener("submit", async e => {
   e.preventDefault();
   const btn = $("#order-submit");
   if (btn.disabled) return;
-  btn.disabled = true;
   const rank = $("#order-rank-box").hidden ? null : parseInt($("#order-rank").value, 10);
   try {
-    await api("/api/account/orders", { method: "POST", body: {
+    await busy(btn, () => api("/api/account/orders", { method: "POST", body: {
       item_id: orderItem.item_id, kind: "sell",
       platinum: parseInt($("#order-price").value, 10), quantity: parseInt($("#order-qty").value, 10),
       rank: Number.isFinite(rank) ? rank : null, visible: $("#order-visible").checked,
-    } });
+    } }));
     dlg.close();
     toast("Лот выставлен");
     refreshTab();
   } catch (err) {
     $("#order-error").textContent = err.message;
     $("#order-error").hidden = false;
-  } finally {
-    btn.disabled = false;
   }
 });
 
 function sellButton(r) {
-  return h("button", { class: r.listed ? "ghost small" : "primary small", onclick: () => openOrder(r) },
+  return h("button", { class: `small sell-btn${r.listed ? " more-lot" : ""}`, onclick: () => openOrder(r) },
     r.listed ? "Ещё лот" : "Выставить");
 }
 
@@ -316,6 +343,7 @@ function setSellSort(key, dir) {
   sellFilter.dir = dir || DEFAULT_DIR[key];
   $("#inv-sort").value = `${sellFilter.sort}:${sellFilter.dir}`;
   sellShown = PAGE;
+  viewChanged();
   renderSell();
 }
 function sortHead(label, key, cls = "") {
@@ -330,10 +358,10 @@ function setChips(groupSel, attr, value) {
   for (const c of $$(`${groupSel} .chip`)) c.setAttribute("aria-pressed", c.dataset[attr] === value ? "true" : "false");
 }
 $$("#inv-status-chips .chip").forEach(c => c.addEventListener("click", () => {
-  sellFilter.status = c.dataset.status; setChips("#inv-status-chips", "status", c.dataset.status); sellShown = PAGE; renderSell();
+  sellFilter.status = c.dataset.status; setChips("#inv-status-chips", "status", c.dataset.status); sellShown = PAGE; viewChanged(); renderSell();
 }));
 $$("#inv-cat-chips .chip").forEach(c => c.addEventListener("click", () => {
-  sellFilter.cat = c.dataset.cat; sellFilter.sub = ""; setChips("#inv-cat-chips", "cat", c.dataset.cat); sellShown = PAGE; renderSell();
+  sellFilter.cat = c.dataset.cat; sellFilter.sub = ""; setChips("#inv-cat-chips", "cat", c.dataset.cat); sellShown = PAGE; viewChanged(); renderSell();
 }));
 
 function renderSubChips(d) {
@@ -345,7 +373,7 @@ function renderSubChips(d) {
   const total = [...counts.values()].reduce((a, b) => a + b.n, 0);
   const chip = (key, label, n) => {
     const b = h("button", { class: "chip", "aria-pressed": String(sellFilter.sub === key) }, label, h("span", { class: "n" }, n));
-    b.addEventListener("click", () => { sellFilter.sub = key; sellShown = PAGE; renderSell(); });
+    b.addEventListener("click", () => { sellFilter.sub = key; sellShown = PAGE; viewChanged(); renderSell(); });
     return b;
   };
   box.replaceChildren(chip("", "Все", total),
@@ -367,7 +395,7 @@ function renderCatCounts(d) {
 let invSearchTimer;
 $("#inv-search").addEventListener("input", e => {
   clearTimeout(invSearchTimer);
-  invSearchTimer = setTimeout(() => { sellFilter.q = e.target.value.trim().toLowerCase(); sellShown = PAGE; renderSell(); }, 150);
+  invSearchTimer = setTimeout(() => { sellFilter.q = e.target.value.trim().toLowerCase(); sellShown = PAGE; viewChanged(); renderSell(); }, 150);
 });
 $("#sell-more").addEventListener("click", () => { sellShown += PAGE; renderSell(); });
 $("#inv-sort").addEventListener("change", e => { const [k, d] = e.target.value.split(":"); setSellSort(k, d); });
@@ -453,6 +481,8 @@ function renderStats(d) {
 }
 
 let sellMaxTotal = 1;
+let animateRows = false;
+function viewChanged() { animateRows = true; }
 function sellRow(r) {
   let hint = null;
   if (r.listed && r.market_min != null && r.listed.platinum !== r.market_min) {
@@ -465,14 +495,15 @@ function sellRow(r) {
       h("div", { class: "item-text" },
         h("span", { class: "item-name", title: r.name }, r.name),
         h("div", { class: "item-meta" }, h("span", {}, `×${fmt(r.count)}`), partTag(r.part), rankTag(r.rank, r.max_rank), saleTag(r.listed), hint))), r.slug, r.price_rank, { count: r.count, rank: r.rank, unit_price: r.unit_price }),
-    h("div", { class: "col-num hide-s" }, plat(r.market_min), h("span", { class: "col-sub" }, "мин. на рынке")),
+    h("div", { class: "col-num hide-s" }, plat(r.market_min)),
     h("div", { class: "col-num" }, plat(r.unit_price),
       r.price_at
         ? h("span", { class: `col-sub${isOld(r.price_at) ? " old" : ""}`, title: isOld(r.price_at) ? "Цена устарела, обновится сама" : "Когда обновлялась цена" }, ago(r.price_at))
         : h("span", { class: "col-sub" }, sellData.fill.running ? "загружается…" : "нет данных")),
-    h("div", { class: "col-num hide-s" }, r.total != null ? fmt(r.total) : "—", h("span", { class: "col-sub" }, "итого")),
-    h("div", { class: "actions" }, sellButton(r), ext(itemUrl(r.slug), "Открыть на маркете")),
-    r.total ? h("span", { class: "share", style: `width:${Math.max(2, Math.round((r.total / sellMaxTotal) * 100))}%` }) : null);
+    h("div", { class: "col-num hide-s total-cell" }, r.total != null ? h("b", {}, fmt(r.total)) : h("span", { class: "dim" }, "—"),
+      r.total ? h("span", { class: "mini", title: "Доля в стоимости инвентаря" },
+        h("i", { style: `width:${Math.max(4, Math.round((r.total / sellMaxTotal) * 100))}%` })) : null),
+    h("div", { class: "actions" }, sellButton(r), ext(itemUrl(r.slug), "Открыть на маркете")));
 }
 
 function rivenRow(r) {
@@ -524,7 +555,12 @@ function renderSell() {
   list.replaceChildren(
     rows.length ? h("div", { class: "list-head" }, sortHead("Предмет", "name"), sortHead("Рынок", "market", "hide-s"),
       sortHead("Цена", "unit"), sortHead("Итого", "total", "hide-s"), h("span", {}, "")) : "",
-    ...rows.slice(0, sellShown).map(sellRow));
+    ...rows.slice(0, sellShown).map((r, i) => {
+      const el = sellRow(r);
+      if (animateRows && i < 24) { el.classList.add("enter"); el.style.setProperty("--i", i); }
+      return el;
+    }));
+  animateRows = false;
   const remaining = rows.length - Math.min(sellShown, rows.length);
   $("#sell-more").hidden = remaining <= 0;
   $("#sell-more").textContent = `Показать ещё ${Math.min(PAGE, remaining)} из ${remaining}`;
@@ -546,17 +582,13 @@ $("#inv-disable").addEventListener("click", async () => {
   await api("/api/inventory/enable", { method: "POST", body: { enabled: false } });
   loadSell();
 });
-$("#inv-load").addEventListener("click", async e => {
-  const btn = e.currentTarget;
-  btn.disabled = true;
-  btn.textContent = "Загружаю…";
+$("#inv-load").addEventListener("click", e => busy(e.currentTarget, async () => {
   try {
     const r = await api("/api/inventory/load", { method: "POST" });
     toast(`Загружено: ${r.items} позиций, модов разлома: ${r.rivens}`);
     loadSell();
-  } catch (err) { toast(err.message, true); }
-  finally { btn.disabled = false; btn.textContent = "Загрузить инвентарь"; }
-});
+  } catch (err) { toast(err.message, true); throw err; }
+}).catch(() => {}));
 const refreshDlg = $("#refresh-dialog");
 const CAT_ORDER = ["prime", "mod", "arcane", "relic", "other"];
 
@@ -610,7 +642,7 @@ $("#refresh-form").addEventListener("submit", async e => {
   const subs = $$("#refresh-tree .subs input:checked").map(i => i.value);
   const force = $("#refresh-form").elements.mode.value === "force";
   try {
-    const r = await api("/api/sell/prices", { method: "POST", body: { subs, force } });
+    const r = await busy($("#refresh-go"), () => api("/api/sell/prices", { method: "POST", body: { subs, force } }));
     refreshDlg.close();
     if (r.items) toast(`Обновляю цены: ${r.items} предметов`);
     else toast(force ? "Нечего обновлять" : "Цены выбранного уже свежие (моложе 30 минут)");
@@ -669,12 +701,16 @@ function orderCard(o) {
     card.classList.toggle("is-hidden", !vis.checked);
     save({ visible: vis.checked }, vis.checked ? "Лот виден покупателям" : "Лот скрыт");
   });
-  let market = null;
+  let market = h("span", { class: "dim", style: "font-size:12px" }, "цена рынка ещё не загружена");
   if (o.market_min != null) {
     const diff = o.platinum - o.market_min;
-    market = h("span", { class: diff > 0 ? "hint-up" : diff < 0 ? "hint-down" : "dim" },
-      `рынок от ${o.market_min} пл` + (diff > 0 ? ` · вы дороже на ${diff}` : diff < 0 ? ` · вы дешевле на ${-diff}` : " · вы первый"));
+    market = h("span", { class: `pill ${diff > 0 ? "up" : diff < 0 ? "down" : "even"}`, title: `Самый дешёвый другой продавец: ${o.market_min} пл` },
+      diff > 0 ? `дороже рынка на ${diff}` : diff < 0 ? `дешевле рынка на ${-diff}` : "вы самый дешёвый");
   }
+  const lotTotal = h("span", { class: "lot-total" }, "сумма ", h("b", {}, fmt(o.platinum * o.quantity)), " пл");
+  const updTotal = () => { lotTotal.replaceChildren("сумма ", h("b", {}, fmt((parseInt(price.value, 10) || 0) * (parseInt(qty.value, 10) || 0))), " пл"); };
+  price.addEventListener("input", updTotal);
+  qty.addEventListener("input", updTotal);
   card.append(
     clickableItem(h("div", { class: "item" }, itemIcon(o),
       h("div", { class: "item-text" }, h("span", { class: "item-name", title: o.name }, o.name),
@@ -684,7 +720,7 @@ function orderCard(o) {
     h("div", { class: "fields" },
       h("label", {}, "Цена, пл", price), h("label", {}, "Количество", qty),
       h("label", { class: "switch" }, vis, "Виден")),
-    h("div", { class: "foot" }, market, h("span", { class: "spacer" }),
+    h("div", { class: "foot" }, market, lotTotal,
       o.slug ? ext(itemUrl(o.slug), "Открыть на маркете") : null,
       h("button", { class: "icon-btn", title: "Снять лот", onclick: async () => {
         if (!confirm(`Снять лот «${o.name}»?`)) return;
@@ -699,7 +735,7 @@ $("#signin-form").addEventListener("submit", async e => {
   signinError("");
   const pw = $("#signin-password");
   try {
-    await api("/api/account/signin", { method: "POST", body: { email: $("#signin-email").value.trim(), password: pw.value } });
+    await busy($("#signin-form button[type=submit]"), () => api("/api/account/signin", { method: "POST", body: { email: $("#signin-email").value.trim(), password: pw.value } }));
     pw.value = "";
     toast("Вход выполнен");
     loadOrders();
@@ -717,14 +753,14 @@ $("#token-form").addEventListener("submit", async e => {
   e.preventDefault();
   signinError("");
   try {
-    await api("/api/account/token", { method: "POST", body: { token: $("#token").value } });
+    await busy($("#token-form button[type=submit]"), () => api("/api/account/token", { method: "POST", body: { token: $("#token").value } }));
     $("#token").value = "";
     toast("Вход выполнен");
     loadOrders();
   } catch { signinError("Маркет не принял токен. Проверьте, что скопировано значение JWT целиком."); }
 });
 $("#signout").addEventListener("click", async () => { await api("/api/account/signout", { method: "POST" }); loadOrders(); });
-$("#orders-refresh").addEventListener("click", loadOrders);
+$("#orders-refresh").addEventListener("click", e => busy(e.currentTarget, loadOrders));
 
 // ---------- watch list ----------
 let searchTimer, searchItems = [], searchActive = -1;
@@ -897,8 +933,8 @@ async function loadRivens() {
   await loadRivenRefs();
   const data = await api("/api/rivens/watch");
   $("#riven-interval").textContent = data.watches.length
-    ? `Каждое оружие проверяется раз в ${Math.round(data.interval_s)} с.` + (data.interval_s > 10 ? " Интервал увеличен, чтобы не превысить лимит запросов маркета." : "")
-    : "";
+    ? `Самые дешёвые лоты с выкупом от игроков в сети. Каждое оружие проверяется раз в ${Math.round(data.interval_s)} с.` + (data.interval_s > 10 ? " Интервал увеличен, чтобы не превысить лимит запросов маркета." : "")
+    : "Самые дешёвые лоты с выкупом от игроков в сети.";
   $("#riven-empty").hidden = data.watches.length > 0;
   $("#riven-watches").replaceChildren(...data.watches.map(w => {
     const filters = [
@@ -990,7 +1026,7 @@ function chartSvg(points, onHover) {
   }
   const top = pts.map((p, i) => `${x(i)},${y(p.max ?? p.median)}`), bot = pts.map((p, i) => `${x(i)},${y(p.min ?? p.median)}`).reverse();
   s.append(el("polygon", { points: [...top, ...bot].join(" "), class: "band" }));
-  s.append(el("path", { d: pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.median).toFixed(1)}`).join(""), class: "med" }));
+  s.append(el("path", { d: pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.median).toFixed(1)}`).join(""), class: "med draw", pathLength: 1 }));
   const bw = Math.max(1.5, iw / pts.length - 2), vb0 = H - P.b + 14;
   pts.forEach((p, i) => {
     const hgt = ((p.volume || 0) / vmax) * VB;
@@ -1037,8 +1073,14 @@ function traderRow(t, kind, d) {
   const total = t.unit * t.per_trade;
   const copy = h("button", { class: "ghost small", title: "Скопировать сообщение для игрового чата", onclick: async () => {
     const text = whisper(kind === "sell" ? "buy" : "sell", t.name, d.name_en, total);
-    try { await navigator.clipboard.writeText(text); toast("Сообщение скопировано — вставьте его в чат игры"); }
-    catch { toast(text); }
+    try {
+      await navigator.clipboard.writeText(text);
+      const label = copy.textContent;
+      copy.textContent = "Скопировано ✓";
+      copy.classList.add("copied");
+      setTimeout(() => { copy.textContent = label; copy.classList.remove("copied"); }, 1600);
+      toast("Сообщение скопировано — вставьте его в чат игры");
+    } catch { toast(text); }
   } }, kind === "sell" ? "Купить" : "Продать");
   return h("div", { class: "trader" },
     h("div", { class: "who" }, h("span", { class: `dot ${t.status}` }), h("span", { class: "n" }, t.name),

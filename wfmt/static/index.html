@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>WF Market Tracker</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -31,23 +32,28 @@
       <button class="primary" id="inv-enable">Понимаю, включить</button>
     </div>
     <div id="inv-enabled" hidden>
+      <div class="page-head">
+        <div><h1>Что продать</h1><p class="page-sub" id="inv-info"></p></div>
+        <div class="head-actions">
+          <button class="ghost" id="sell-refresh" aria-haspopup="dialog">Обновить цены…</button>
+          <button class="primary" id="inv-load">Загрузить инвентарь</button>
+        </div>
+      </div>
       <div class="stats" id="inv-stats"></div>
-      <div class="toolbar">
-        <div class="chips" id="inv-status-chips" role="group" aria-label="Статус">
-          <button class="chip" data-status="" aria-pressed="true">Все</button>
-          <button class="chip" data-status="unlisted" aria-pressed="false">Не выставлено</button>
-          <button class="chip" data-status="listed" aria-pressed="false">На продаже</button>
-        </div>
-        <div class="chips" id="inv-cat-chips" role="group" aria-label="Тип">
-          <button class="chip" data-cat="" aria-pressed="true">Всё</button>
-          <button class="chip" data-cat="prime" aria-pressed="false">Прайм</button>
-          <button class="chip" data-cat="mod" aria-pressed="false">Моды</button>
-          <button class="chip" data-cat="arcane" aria-pressed="false">Мистификаторы</button>
-          <button class="chip" data-cat="relic" aria-pressed="false">Реликвии</button>
-          <button class="chip" data-cat="other" aria-pressed="false">Прочее</button>
-        </div>
-        <span class="spacer"></span>
-        <select id="inv-sort" aria-label="Сортировка">
+      <div class="fill-card" id="inv-fill" hidden>
+        <div class="fill-top"><span class="fill-title"></span><span class="fill-eta"></span></div>
+        <div class="bar"><span></span></div>
+        <div class="fill-sub"></div>
+      </div>
+      <div class="filters">
+        <div class="filter-row">
+          <div class="seg" id="inv-status-chips" role="group" aria-label="Статус">
+            <button class="chip" data-status="" aria-pressed="true">Все</button>
+            <button class="chip" data-status="unlisted" aria-pressed="false">Не выставлено</button>
+            <button class="chip" data-status="listed" aria-pressed="false">На продаже</button>
+          </div>
+          <label class="search-box"><span class="search-ico" aria-hidden="true"></span><input id="inv-search" type="search" placeholder="Найти в инвентаре" autocomplete="off"></label>
+          <select id="inv-sort" aria-label="Сортировка">
           <option value="total:desc">Итого: сначала дорогое</option>
           <option value="total:asc">Итого: сначала дешёвое</option>
           <option value="unit:desc">Цена за шт.: дорогие</option>
@@ -59,20 +65,16 @@
           <option value="name:asc">Название: А → Я</option>
           <option value="name:desc">Название: Я → А</option>
         </select>
-        <input id="inv-search" type="search" placeholder="Найти в инвентаре" autocomplete="off">
-      </div>
-      <div class="chips sub-chips" id="inv-sub-chips" role="group" aria-label="Подкатегория" hidden></div>
-      <div class="toolbar sub">
-        <button class="primary" id="inv-load">Загрузить инвентарь</button>
-        <button class="ghost" id="sell-refresh" aria-haspopup="dialog">Обновить цены…</button>
-        <span class="hint" id="inv-info"></span>
-        <span class="spacer"></span>
-        <button class="ghost small" id="inv-disable">Выключить загрузку</button>
-      </div>
-      <div class="fill-card" id="inv-fill" hidden>
-        <div class="fill-top"><span class="fill-title"></span><span class="fill-eta"></span></div>
-        <div class="bar"><span></span></div>
-        <div class="fill-sub"></div>
+        </div>
+        <div class="chips" id="inv-cat-chips" role="group" aria-label="Тип">
+          <button class="chip" data-cat="" aria-pressed="true">Всё</button>
+          <button class="chip" data-cat="prime" aria-pressed="false">Прайм</button>
+          <button class="chip" data-cat="mod" aria-pressed="false">Моды</button>
+          <button class="chip" data-cat="arcane" aria-pressed="false">Мистификаторы</button>
+          <button class="chip" data-cat="relic" aria-pressed="false">Реликвии</button>
+          <button class="chip" data-cat="other" aria-pressed="false">Прочее</button>
+        </div>
+        <div class="chips sub-chips" id="inv-sub-chips" role="group" aria-label="Подкатегория" hidden></div>
       </div>
       <div class="list" id="sell-list"></div>
       <button class="ghost more" id="sell-more" hidden>Показать ещё</button>
@@ -80,6 +82,7 @@
       <details class="unmatched" id="inv-unmatched" hidden><summary></summary><div class="groups"></div></details>
       <h2 class="sub" id="inv-rivens-title" hidden>Моды разлома в инвентаре</h2>
       <div class="list" id="inv-rivens"></div>
+      <div class="page-foot"><button class="linkish" id="inv-disable">Выключить загрузку инвентаря</button></div>
     </div>
   </section>
 
@@ -108,10 +111,10 @@
       <p class="error" id="signin-error" hidden></p>
     </div>
     <div id="orders-box" hidden>
-      <div class="toolbar">
-        <span class="account" id="account-name"></span>
-        <span class="spacer"></span>
-        <select id="orders-sort" aria-label="Сортировка лотов">
+      <div class="page-head">
+        <div><h1>Мои лоты</h1><p class="page-sub" id="account-name"></p></div>
+        <div class="head-actions">
+          <select id="orders-sort" aria-label="Сортировка лотов">
           <option value="name:asc">Название: А → Я</option>
           <option value="name:desc">Название: Я → А</option>
           <option value="price:desc">Цена: дорогие</option>
@@ -119,8 +122,9 @@
           <option value="total:desc">Сумма лота: больше</option>
           <option value="diff:desc">Сильнее всего дороже рынка</option>
         </select>
-        <button class="ghost" id="orders-refresh">Обновить</button>
-        <button class="ghost small" id="signout">Выйти</button>
+          <button class="ghost" id="orders-refresh">Обновить</button>
+          <button class="ghost" id="signout">Выйти</button>
+        </div>
       </div>
       <div class="cards" id="orders-list"></div>
       <p class="empty" id="orders-empty" hidden>Активных лотов нет. Выставить предмет можно со вкладки «Что продать».</p>
@@ -129,6 +133,7 @@
 
   <!-- Watch list -->
   <section id="tab-watch" class="tab" hidden>
+    <div class="page-head"><div><h1>Отслеживание</h1><p class="page-sub">Цены выбранных предметов обновляются раз в 5 минут. Нажмите на предмет, чтобы открыть график.</p></div></div>
     <div class="toolbar">
       <div class="search">
         <input id="search" type="search" placeholder="Добавить предмет: название на русском или английском" autocomplete="off">
@@ -151,6 +156,7 @@
 
   <!-- Rivens -->
   <section id="tab-rivens" class="tab" hidden>
+    <div class="page-head"><div><h1>Моды разлома</h1><p class="page-sub" id="riven-interval">Самые дешёвые лоты с выкупом от игроков в сети.</p></div></div>
     <form id="riven-form" class="panel riven-form">
       <label class="wide">Оружие
         <input id="riven-weapon" list="riven-weapons" placeholder="Начните вводить название" required autocomplete="off">
@@ -164,13 +170,13 @@
       <label class="check"><input id="riven-notify" type="checkbox" checked> Уведомлять о новых</label>
       <button class="primary" type="submit">Следить</button>
     </form>
-    <p class="hint" id="riven-interval"></p>
     <div id="riven-watches"></div>
     <p class="empty" id="riven-empty" hidden>Выберите оружие и нужные характеристики, чтобы видеть самые дешёвые лоты с выкупом.</p>
   </section>
 
   <!-- Alerts -->
   <section id="tab-alerts" class="tab" hidden>
+    <div class="page-head"><div><h1>Уведомления</h1><p class="page-sub">Всплывают в углу экрана Windows и никуда не отправляются.</p></div></div>
     <form id="alert-form" class="panel riven-form">
       <label class="wide">Предмет из отслеживания<select id="alert-item" required></select></label>
       <label>Условие<select id="alert-kind">
