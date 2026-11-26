@@ -373,3 +373,14 @@ def test_items_without_price_come_first(catalog, db):
     assert price_targets(catalog, db, now=NOW)[0] == ("soma_rec", None)
     assert select_targets(catalog, db, subs=None, max_age_s=0, now=NOW)[0] == ("soma_rec", None)
     assert auto_targets(catalog, db, listed_ids={"id_bullseye"}, now=NOW)[0] == ("soma_rec", None)
+
+
+async def test_rows_carry_ducats_and_vaulted(tmp_path, db, http):
+    c = Catalog(None, tmp_path)
+    it = item("ash_sys", "/A/Sys")
+    it["ducats"] = 45
+    it["vaulted"] = True
+    c._index({"fetched_at": 0, "weapons": [], "attrs": [], "items": [it]})
+    db.inventory_save([InvItem("/A/Sys", 1, None)], [], NOW)
+    (r,) = (await build_sell_list(c, http, db, now=NOW, riven_prices=False)).rows
+    assert (r.ducats, r.vaulted) == (45, True)

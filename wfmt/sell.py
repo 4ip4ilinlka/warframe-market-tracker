@@ -39,6 +39,8 @@ class SellRow:
     tier: str | None = None
     sub: str = "other:other"
     sub_label: str = ""
+    ducats: int | None = None
+    vaulted: bool = False
 
 
 @dataclass
@@ -323,6 +325,8 @@ async def build_sell_list(
                 tier=relic_tier(slug),
                 sub=(sub := item_subcategory(catalog, cat)),
                 sub_label=SUBCAT_LABELS.get(sub, ""),
+                ducats=cat.ducats,
+                vaulted=cat.vaulted,
             )
         )
     rows.sort(key=lambda r: (r.total is None, -(r.total or 0), r.name))

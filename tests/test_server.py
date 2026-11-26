@@ -424,3 +424,16 @@ def test_bulk_orders(client, state):
     assert made == [("i1", 10, 3, False)]
     assert [x["ok"] for x in r["results"]] == [True, False]
     assert "rank" in r["results"][1]["error"]
+
+
+def test_sets_and_value_history_endpoints(client, state):
+    from wfmt.models import InvItem, PriceSnapshot
+
+    assert client.get("/api/sets").json() == {"sets": []}
+    state.db.inventory_save([InvItem("/A", 2, None)], [], datetime.now(timezone.utc))
+    state.db.price_save(PriceSnapshot("ash_sys", None, 10, None, None, 0, datetime.now(timezone.utc)))
+    d = client.get("/api/sell").json()
+    assert d["value"]["total"] == 20
+    assert d["value"]["history"][-1][1] == 20
+    row = d["rows"][0]
+    assert "ducats" in row and "vaulted" in row

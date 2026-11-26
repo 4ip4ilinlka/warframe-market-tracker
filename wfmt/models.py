@@ -34,6 +34,8 @@ class CatalogItem:
     max_rank: int | None
     thumb: str | None
     subtypes: list[str] = field(default_factory=list)
+    ducats: int | None = None
+    vaulted: bool = False
 
 
 @dataclass

@@ -159,3 +159,17 @@ async def test_old_cache_format_refetched(http, tmp_path, clock, cat):
 async def test_riven_weapon_has_thumb(cat):
     w = cat.riven_weapon("kulstar")
     assert w.thumb and w.thumb.endswith(".png")
+
+
+async def test_ducats_and_vaulted_kept(http, tmp_path, clock):
+    ru = fx("items_ru.json"); en = fx("items_en.json")
+    for d in (ru, en):
+        d["data"][0]["ducats"] = 45
+        d["data"][0]["vaulted"] = True
+    with respx.mock:
+        respx.get(f"{API}/v2/items").mock(side_effect=lambda r: httpx.Response(200, json=ru if r.headers["Language"] == "ru" else en))
+        respx.get(f"{API}/v2/riven/weapons").mock(return_value=httpx.Response(200, json={"data": []}))
+        respx.get(f"{API}/v2/riven/attributes").mock(return_value=httpx.Response(200, json={"data": []}))
+        c = Catalog(http, tmp_path, clock=clock)
+        await c.load(force=True)
+    assert (c.items[0].ducats, c.items[0].vaulted) == (45, True)

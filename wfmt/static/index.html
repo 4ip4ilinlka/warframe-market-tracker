@@ -18,6 +18,7 @@
     <button role="tab" data-tab="rivens">Моды разлома</button>
     <button role="tab" data-tab="alerts">Уведомления</button>
   </nav>
+  <button class="kbd-btn" id="palette-btn" title="Быстрый поиск любого предмета">Поиск <kbd>Ctrl K</kbd></button>
   <button class="profile-btn" id="profile-btn" title="Профили: сохранить или загрузить настройки">
     <span class="avatar" aria-hidden="true"></span><span id="profile-name">Профиль</span>
   </button>
@@ -48,6 +49,12 @@
         <div class="bar"><span></span></div>
         <div class="fill-sub"></div>
       </div>
+      <section class="sets-panel" id="sets-panel" hidden>
+        <button class="sets-toggle" id="sets-toggle" aria-expanded="true">
+          <span class="sets-title"></span><span class="sets-sub"></span><span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="sets-list" id="sets-list"></div>
+      </section>
       <div class="filters">
         <div class="filter-row">
           <div class="seg" id="inv-status-chips" role="group" aria-label="Статус">
@@ -67,6 +74,7 @@
           <option value="count:asc">Количество: меньше</option>
           <option value="name:asc">Название: А → Я</option>
           <option value="name:desc">Название: Я → А</option>
+          <option value="ducats:desc">Дукаты: выгодно отдать Баро</option>
         </select>
         </div>
         <div class="chips" id="inv-cat-chips" role="group" aria-label="Тип">
@@ -265,6 +273,14 @@
       <button type="submit" class="primary" id="match-go">Применить</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="palette" class="palette" aria-label="Быстрый поиск">
+  <div class="palette-box">
+    <label class="search-box"><span class="search-ico" aria-hidden="true"></span><input id="palette-input" placeholder="Найти любой предмет маркета…" autocomplete="off"></label>
+    <ul class="palette-list" id="palette-list"></ul>
+    <div class="palette-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> выбрать</span><span><kbd>Enter</kbd> открыть карточку</span><span><kbd>Esc</kbd> закрыть</span></div>
+  </div>
 </dialog>
 
 <div class="select-bar" id="select-bar" hidden>

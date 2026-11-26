@@ -29,6 +29,7 @@ from .prices import default_subtype, fetch_details, fetch_price
 from .profiles import _check as check_profile, apply_profile, snapshot
 from .scheduler import Scheduler
 from .sell import auto_targets, build_sell_list, fill_prices, select_targets
+from .sets import buildable_sets, fill_sets
 from .visual import category_of, part_of, rarity_of, relic_tier
 
 log = logging.getLogger(__name__)
@@ -304,6 +305,8 @@ def create_app(
                     "part": part_of(w.slug),
                     "rarity": rarity_of(item.tags) if item else None,
                     "tier": relic_tier(w.slug),
+                    "ducats": item.ducats if item else None,
+                    "vaulted": item.vaulted if item else False,
                     "listed": listings.get(item.id) if item else None,
                     "slug": w.slug,
                     "rank": w.rank,
@@ -427,6 +430,7 @@ def create_app(
         try:
             await fill_prices(st.catalog, st.http, st.db, progress=progress, medians=st.medians,
                               max_age_s=max_age_s, targets=targets, exclude_user=me)
+            await fill_sets(st.catalog, st.http, st.db)
         except Exception as e:
             log.warning("price fill failed: %s", type(e).__name__)
         finally:
@@ -504,6 +508,12 @@ def create_app(
         st = S(request)
         # Cache-only: prices and riven references are fetched by the background fill job.
         sl = await build_sell_list(st.catalog, st.http, st.db, median_cache=st.medians, fetch_medians=False)
+        total_value = sum(r.total or 0 for r in sl.rows)
+        now = datetime.now(timezone.utc)
+        if sl.rows and not st.fill["running"]:
+            st.db.value_record(total_value, now)  # one point per hour; partial loads are not recorded
+        history = [[t.isoformat(), v] for t, v in st.db.value_history(now - timedelta(days=30))]
+        day_ago = [v for t, v in st.db.value_history(now - timedelta(hours=26)) if t <= now - timedelta(hours=22)]
         listings = await _listings(st)
         summary = {"lots": sum(v["orders"] for v in listings.values()),
                    "platinum": sum(o.platinum * o.quantity for o in (st.orders_cache or []) if o.kind == "sell")
@@ -520,6 +530,8 @@ def create_app(
             "unmatched": sl.unmatched,
             "unmatched_groups": sl.unmatched_groups or {},
             "listings_summary": summary,
+            "value": {"total": total_value, "history": history,
+                      "delta_day": total_value - day_ago[-1] if day_ago else None},
             "inventory_at": sl.inventory_at.isoformat() if sl.inventory_at else None,
             "fill": st.fill,
         }
@@ -618,6 +630,10 @@ def create_app(
         S(request).db.alert_remove(alert_id)
         return {"ok": True}
 
+    @app.get("/api/sets")
+    async def sets(request: Request):
+        return {"sets": buildable_sets(S(request).catalog, S(request).db)}
+
     @app.get("/api/item/{slug}")
     async def item_details(request: Request, slug: str, rank: int | None = None):
         st = S(request)
@@ -631,6 +647,7 @@ def create_app(
             "slug": slug, "item_id": item.id, "name": item.name_ru, "name_en": item.name_en,
             "thumb": item.thumb, "part": part_of(slug), "category": category_of(item.tags),
             "rarity": rarity_of(item.tags), "tier": relic_tier(slug), "max_rank": item.max_rank,
+            "ducats": item.ducats, "vaulted": item.vaulted,
             "rank": rank, "subtype": default_subtype(st.catalog, slug),
             "listed": listings.get(item.id), "latest": _snap(snap), **details,
         }

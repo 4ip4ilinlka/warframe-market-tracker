@@ -181,6 +181,13 @@ function rankTag(rank, maxRank) {
   return h("span", { class: `pips${max ? " max" : ""}`, title: `Ранг ${rank} из ${maxRank}` }, pips, h("b", {}, max ? "макс." : `${rank}/${maxRank}`));
 }
 
+function ducatTag(d) {
+  return d ? h("span", { class: "tag ducats", title: "Дукаты у Баро Ки'Тира" }, h("i", { class: "dc" }), d) : null;
+}
+function vaultTag(v) {
+  return v ? h("span", { class: "tag vaulted", title: "Больше не выпадает в игре — цена обычно растёт" }, "в хранилище") : null;
+}
+
 function saleTag(listed) {
   if (!listed) return null;
   const qty = listed.quantity > 1 ? ` ×${listed.quantity}` : "";
@@ -219,7 +226,15 @@ function sparkDefs() {
     st.setAttribute("offset", off); st.setAttribute("stop-color", "#d6e2f0"); st.setAttribute("stop-opacity", op);
     g.append(st);
   }
-  defs.append(g); s.append(defs);
+  defs.append(g);
+  const g2 = document.createElementNS(SVGNS, "linearGradient");
+  g2.setAttribute("id", "value-grad"); g2.setAttribute("x1", 0); g2.setAttribute("y1", 0); g2.setAttribute("x2", 0); g2.setAttribute("y2", 1);
+  for (const [off, op] of [["0", ".35"], ["1", "0"]]) {
+    const st = document.createElementNS(SVGNS, "stop");
+    st.setAttribute("offset", off); st.setAttribute("stop-color", "#d6b26e"); st.setAttribute("stop-opacity", op);
+    g2.append(st);
+  }
+  defs.append(g2); s.append(defs);
   document.body.prepend(s);
 }
 
@@ -348,8 +363,9 @@ function sorter(key, dir) {
 const SELL_KEYS = {
   total: r => r.total, unit: r => r.unit_price, market: r => r.market_min,
   count: r => r.count, name: r => r.name,
+  ducats: r => (r.ducats && r.unit_price ? r.ducats / r.unit_price : null),
 };
-const DEFAULT_DIR = { total: "desc", unit: "desc", market: "desc", count: "desc", name: "asc" };
+const DEFAULT_DIR = { total: "desc", unit: "desc", market: "desc", count: "desc", name: "asc", ducats: "desc" };
 function setSellSort(key, dir) {
   sellFilter.sort = key;
   sellFilter.dir = dir || DEFAULT_DIR[key];
@@ -438,6 +454,7 @@ async function loadSell() {
   if (!on) return;
   sellData = await api("/api/sell");
   renderSell();
+  loadSets();
   const needs = sellData.rows.some(r => !r.price_at || isOld(r.price_at)) || sellData.rivens.some(r => r.reference_price == null);
   if (needs && !sellData.fill.running && !sellAutoRefreshed && sellData.inventory_at) {
     sellAutoRefreshed = true;
@@ -467,6 +484,27 @@ function countUp(el, key, target) {
   requestAnimationFrame(step);
 }
 
+function valueSpark(v) {
+  const pts = (v && v.history || []).map(([, t]) => t);
+  if (pts.length < 2) return null;
+  const W = 120, H = 34, min = Math.min(...pts), max = Math.max(...pts), span = max - min || 1;
+  const xy = pts.map((p, i) => [(i / (pts.length - 1)) * (W - 2) + 1, H - 3 - ((p - min) / span) * (H - 6)]);
+  const line = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+  const s = document.createElementNS(SVGNS, "svg");
+  s.setAttribute("width", W); s.setAttribute("height", H); s.setAttribute("class", "value-spark");
+  const t = document.createElementNS(SVGNS, "title"); t.textContent = "Стоимость инвентаря за 30 дней"; s.append(t);
+  for (const [cls, d] of [["area", `${line}L${W - 1},${H}L1,${H}Z`], ["line", line]]) {
+    const p = document.createElementNS(SVGNS, "path"); p.setAttribute("d", d); p.setAttribute("class", cls); s.append(p);
+  }
+  return s;
+}
+function valueTrend(v) {
+  if (!v || v.delta_day == null) return null;
+  const d = v.delta_day;
+  return h("div", { class: "trend" }, h("span", { class: `delta-day ${d > 0 ? "up" : d < 0 ? "down" : "flat"}` },
+    `${d > 0 ? "+" : d < 0 ? "−" : ""}${fmt(Math.abs(d))} пл за сутки`));
+}
+
 function heroTile(d, total) {
   const byCat = {};
   for (const r of d.rows) byCat[r.category] = (byCat[r.category] || 0) + (r.total || 0);
@@ -475,7 +513,8 @@ function heroTile(d, total) {
   const parts = CAT_ORDER.filter(c => byCat[c] > 0);
   return h("div", { class: "stat hero" },
     h("div", { class: "label" }, svg("box"), "В инвентаре", h("span", { class: "dim", style: "margin-left:auto" }, `${d.rows.length} видов`)),
-    h("div", { class: "value" }, num, svg("platinum", "plat-ico")),
+    h("div", { class: "value" }, num, svg("platinum", "plat-ico"), valueSpark(d.value)),
+    valueTrend(d.value),
     h("div", { class: "catbar", "aria-hidden": "true" }, parts.map(c =>
       h("span", { class: `c-${c}`, style: `width:${(byCat[c] / Math.max(total, 1)) * 100}%`, title: `${CAT_LABELS[c]}: ${fmt(byCat[c])}` }))),
     h("div", { class: "legend" }, parts.map(c => h("span", {}, h("i", { class: `c-${c}` }), CAT_LABELS[c], h("b", {}, fmt(byCat[c]))))));
@@ -510,7 +549,7 @@ function sellRow(r) {
     clickableItem(h("div", { class: "item" }, cb, itemIcon(r),
       h("div", { class: "item-text" },
         h("span", { class: "item-name", title: r.name }, r.name),
-        h("div", { class: "item-meta" }, h("span", {}, `×${fmt(r.count)}`), partTag(r.part), rankTag(r.rank, r.max_rank), saleTag(r.listed), hint))), r.slug, r.price_rank, { count: r.count, rank: r.rank, unit_price: r.unit_price }),
+        h("div", { class: "item-meta" }, h("span", {}, `×${fmt(r.count)}`), partTag(r.part), rankTag(r.rank, r.max_rank), ducatTag(r.ducats), vaultTag(r.vaulted), saleTag(r.listed), hint))), r.slug, r.price_rank, { count: r.count, rank: r.rank, unit_price: r.unit_price }),
     h("div", { class: "col-num hide-s" }, plat(r.market_min)),
     h("div", { class: "col-num" }, plat(r.unit_price),
       r.price_at
@@ -1148,7 +1187,7 @@ async function openItem(slug, rank, extra = {}) {
   body.replaceChildren(
     h("div", { class: "drawer-head" }, itemIcon(d),
       h("div", {}, h("h2", {}, d.name), h("div", { class: "en" }, d.name_en),
-        h("div", { class: "item-meta" }, partTag(d.part), rankTag(rank, d.max_rank), saleTag(d.listed),
+        h("div", { class: "item-meta" }, partTag(d.part), rankTag(rank, d.max_rank), ducatTag(d.ducats), vaultTag(d.vaulted), saleTag(d.listed),
           d.subtype ? h("span", { class: "tag" }, d.subtype === "intact" ? "целая" : d.subtype) : null)),
       h("button", { class: "icon-btn close", title: "Закрыть", onclick: () => drawer.close() }, svg("close"))),
     h("div", { class: "kpis" },
@@ -1408,6 +1447,113 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && !document.querySelector("dialog[open]") && selected.size) {
     selected.clear(); updateSelectBar(); renderSell();
   }
+});
+
+
+// ---------- sets you can build ----------
+let setsCollapsed = false, setsShowAll = false;
+const SETS_PREVIEW = 6;
+try { setsCollapsed = localStorage.getItem("setsCollapsed") === "1"; } catch { /* ignore */ }
+$("#sets-toggle").addEventListener("click", () => {
+  setsCollapsed = !setsCollapsed;
+  try { localStorage.setItem("setsCollapsed", setsCollapsed ? "1" : "0"); } catch { /* ignore */ }
+  $("#sets-panel").classList.toggle("collapsed", setsCollapsed);
+  $("#sets-toggle").setAttribute("aria-expanded", String(!setsCollapsed));
+});
+
+async function loadSets() {
+  let data;
+  try { data = await api("/api/sets"); } catch { return; }
+  const panel = $("#sets-panel");
+  const list = data.sets;
+  panel.hidden = !list.length;
+  if (!list.length) return;
+  panel.classList.toggle("collapsed", setsCollapsed);
+  $("#sets-toggle").setAttribute("aria-expanded", String(!setsCollapsed));
+  const better = list.filter(x => x.better === "set");
+  const extra = better.reduce((s, x) => s + x.gain * x.count, 0);
+  $("#sets-panel .sets-title").textContent = `Можно собрать комплекты: ${list.length}`;
+  $("#sets-panel .sets-sub").textContent = better.length
+    ? `комплектом выгоднее для ${better.length} — это ещё ≈ ${fmt(extra)} пл сверху`
+    : "по частям сейчас выгоднее или цены ещё загружаются";
+  const cards = list.map(x => {
+    const best = x.better;
+    const opt = (kind, label, price) => h("div", { class: `opt${best === kind ? " best" : ""}` },
+      h("div", { class: "label" }, label, best === kind && x.gain != null ? h("b", {}, `+${fmt(Math.abs(x.gain))}`) : null),
+      plat(price));
+    return h("div", { class: "set-card" },
+      clickableItem(h("div", { class: "item" }, itemIcon({ thumb: x.thumb, part: "set", category: "prime" }),
+        h("div", { class: "item-text" }, h("span", { class: "item-name" }, x.name),
+          h("div", { class: "item-meta" }, h("span", {}, `можно собрать ×${x.count}`), ducatTag(x.ducats)))), x.slug, null, { count: x.count }),
+      h("div", { class: "compare" }, opt("set", "Комплектом", x.set_price), opt("parts", "По частям", x.parts_price)),
+      h("div", { class: "parts" }, x.parts.map(p => {
+        const part = slugPart(p.slug);
+        return h("span", { class: "tag", title: p.name }, part ? svg(PART_ICON[part] || "gear") : null,
+          `${PART_LABELS[part] || p.name} `, h("b", { style: "color:var(--text);font-weight:500" }, p.owned), `/${p.qty}`);
+      })),
+      h("div", { class: "foot" },
+        h("span", { class: "hint" }, best === "set" ? "Соберите в игре и продайте комплектом" : best === "parts" ? "Выгоднее продавать детали" : "Цены загружаются…"),
+        h("span", { class: "spacer" }),
+        best === "set" ? h("button", { class: "small sell-btn", onclick: () => openOrder({ slug: x.slug, item_id: x.item_id, name: x.name, thumb: x.thumb,
+          part: "set", category: "prime", count: x.count, rank: null, market_min: x.set_price, unit_price: x.set_price }) }, "Выставить") : null));
+  });
+  const shown = setsShowAll ? cards : cards.slice(0, SETS_PREVIEW);
+  const more = cards.length > SETS_PREVIEW
+    ? h("button", { class: "ghost small sets-more", onclick: () => { setsShowAll = !setsShowAll; loadSets(); } },
+        setsShowAll ? "Свернуть" : `Показать все ${cards.length}`)
+    : null;
+  $("#sets-list").replaceChildren(...shown, ...(more ? [h("div", { class: "sets-more-row" }, more)] : []));
+}
+
+// ---------- command palette (Ctrl+K) ----------
+const palette = $("#palette");
+let palItems = [], palActive = 0, palTimer;
+function openPalette() {
+  if (document.querySelector("dialog[open]") && !palette.open) return;
+  $("#palette-input").value = "";
+  $("#palette-list").replaceChildren(h("li", { class: "dim" }, "Начните вводить название — по-русски или по-английски"));
+  palItems = [];
+  palette.showModal();
+  $("#palette-input").focus();
+}
+function renderPalette() {
+  $("#palette-list").replaceChildren(...(palItems.length ? palItems.map((it, i) => {
+    const li = h("li", { class: i === palActive ? "active" : null, onclick: () => pick(i) },
+      itemIcon({ thumb: it.thumb, part: slugPart(it.slug), category: searchCategory(it.tags) }),
+      h("span", {}, it.name, h("span", { class: "en" }, it.name_en)), h("span", { class: "go" }, "открыть ↵"));
+    li.addEventListener("mousemove", () => { if (palActive !== i) { palActive = i; renderPalette(); } });
+    return li;
+  }) : [h("li", { class: "dim" }, "Ничего не найдено")]));
+  $("#palette-list li.active")?.scrollIntoView({ block: "nearest" });
+}
+function pick(i) {
+  const it = palItems[i];
+  if (!it) return;
+  palette.close();
+  openItem(it.slug, it.max_rank ? 0 : null, { count: 1 });
+}
+$("#palette-input").addEventListener("input", () => {
+  clearTimeout(palTimer);
+  palTimer = setTimeout(async () => {
+    const q = $("#palette-input").value.trim();
+    if (q.length < 2) return;
+    palItems = await api(`/api/search?q=${encodeURIComponent(q)}`);
+    palActive = 0;
+    renderPalette();
+  }, 140);
+});
+$("#palette-input").addEventListener("keydown", e => {
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!palItems.length) return;
+    palActive = (palActive + (e.key === "ArrowDown" ? 1 : -1) + palItems.length) % palItems.length;
+    renderPalette();
+  } else if (e.key === "Enter") { e.preventDefault(); pick(palActive); }
+});
+palette.addEventListener("click", e => { if (e.target === palette) palette.close(); });
+$("#palette-btn").addEventListener("click", openPalette);
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K" || e.key === "л" || e.key === "Л")) { e.preventDefault(); openPalette(); }
 });
 
 // ---------- quit ----------

@@ -11,7 +11,7 @@ from .http import HttpClient
 from .models import CatalogItem, RivenWeapon
 
 CACHE_FILE = "catalog.json"
-CACHE_VERSION = 3  # bump when the cached fields change
+CACHE_VERSION = 4  # bump when the cached fields change
 
 
 def norm(s: str) -> str:
@@ -64,6 +64,8 @@ class Catalog:
                     "max_rank": i.get("maxRank"),
                     "thumb": ru_n.get("thumb") or en_thumbs.get(i["id"]),
                     "subtypes": i.get("subtypes") or [],
+                    "ducats": i.get("ducats"),
+                    "vaulted": bool(i.get("vaulted")),
                 }
             )
         return {

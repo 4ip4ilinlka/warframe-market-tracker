@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS alert (
 CREATE TABLE IF NOT EXISTS setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS secret (key TEXT PRIMARY KEY, value BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS profile (name TEXT PRIMARY KEY, data TEXT NOT NULL, saved_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS set_parts (set_slug TEXT PRIMARY KEY, parts TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS value_history (hour TEXT PRIMARY KEY, total INTEGER NOT NULL);
 """
 
 _NONE_RANK = -1
@@ -244,3 +246,20 @@ class Db:
         """Remove watches, riven watches and all alerts (before loading a profile)."""
         for table in ("watch", "riven_watch", "riven_seen", "alert"):
             self._exec(f"DELETE FROM {table}")
+
+    # --- set compositions (static market data, cached for good) ---
+    def set_parts_save(self, set_slug: str, parts: list[tuple[str, int]]) -> None:
+        self._exec("INSERT OR REPLACE INTO set_parts(set_slug, parts) VALUES (?, ?)", (set_slug, json.dumps(parts)))
+
+    def set_parts_get(self, set_slug: str) -> list[tuple[str, int]] | None:
+        rows = self._all("SELECT parts FROM set_parts WHERE set_slug=?", (set_slug,))
+        return [tuple(p) for p in json.loads(rows[0][0])] if rows else None
+
+    # --- inventory value over time (one point per hour) ---
+    def value_record(self, total: int, at: datetime | None = None) -> None:
+        at = (at or datetime.now(timezone.utc)).replace(minute=0, second=0, microsecond=0)
+        self._exec("INSERT OR REPLACE INTO value_history(hour, total) VALUES (?, ?)", (at.isoformat(), int(total)))
+
+    def value_history(self, since: datetime) -> list[tuple[datetime, int]]:
+        rows = self._all("SELECT hour, total FROM value_history WHERE hour >= ? ORDER BY hour", (since.isoformat(),))
+        return [(datetime.fromisoformat(h), t) for h, t in rows]
