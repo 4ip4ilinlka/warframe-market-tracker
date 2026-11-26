@@ -263,7 +263,7 @@ function showTab(name) {
 }
 $$(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 function refreshTab() {
-  ({ watch: loadPrices, rivens: loadRivens, inventory: loadSell, orders: loadOrders, alerts: loadAlerts })[currentTab]();
+  ({ watch: loadPrices, rivens: loadRivens, inventory: loadSell, orders: loadOrders, alerts: loadAlerts, primes: loadPrimes })[currentTab]();
 }
 
 // ---------- status ----------
@@ -1555,6 +1555,128 @@ $("#palette-btn").addEventListener("click", openPalette);
 document.addEventListener("keydown", e => {
   if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K" || e.key === "л" || e.key === "Л")) { e.preventDefault(); openPalette(); }
 });
+
+
+// ---------- primes: active pool, vault, Varzia ----------
+const primeFilter = { status: "", kind: "warframe", q: "", mine: false };
+let primesData = null, primesAnimate = true, countdownTimer = null;
+const PRIME_STATUS_RU = { active: "Выпадает", varzia: "У Варзии", vaulted: "В хранилище" };
+const STATUS_HINT = {
+  active: "Детали выпадают из реликвий, которые сейчас в игре",
+  varzia: "Сейчас продаётся у Варзии на Марсе (Возрождение Прайм)",
+  vaulted: "Убран в хранилище: реликвии больше не выпадают",
+};
+const relicLabel = slug => slug.replace(/_relic$/, "").split("_").map((w, i) => i === 0 ? w[0].toUpperCase() + w.slice(1) : w.toUpperCase()).join(" ");
+
+function bindSeg(sel, key, after) {
+  $$(`${sel} .chip`).forEach(c => c.addEventListener("click", () => {
+    primeFilter[key] = c.dataset.v;
+    for (const x of $$(`${sel} .chip`)) x.setAttribute("aria-pressed", String(x === c));
+    primesAnimate = true;
+    after();
+  }));
+}
+bindSeg("#primes-status", "status", renderPrimes);
+bindSeg("#primes-kind", "kind", renderPrimes);
+let primeSearchTimer;
+$("#primes-search").addEventListener("input", e => {
+  clearTimeout(primeSearchTimer);
+  primeSearchTimer = setTimeout(() => { primeFilter.q = e.target.value.trim().toLowerCase(); primesAnimate = true; renderPrimes(); }, 150);
+});
+$("#primes-mine").addEventListener("change", e => { primeFilter.mine = e.target.checked; primesAnimate = true; renderPrimes(); });
+$("#primes-refresh").addEventListener("click", e => busy(e.currentTarget, async () => {
+  await api("/api/primes/refresh", { method: "POST" });
+  await loadPrimes();
+  toast("Данные о праймах обновлены");
+}).catch(err => toast(err.message, true)));
+
+function leftText(iso) {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "ротация сменилась";
+  const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return d ? `${d} д ${h} ч` : h ? `${h} ч ${mm} мин` : `${mm} мин`;
+}
+
+function renderVarzia(v, primes) {
+  const box = $("#varzia");
+  clearInterval(countdownTimer);
+  if (!v || !(v.sets || []).length) { box.hidden = true; return; }
+  box.hidden = false;
+  const bySlug = Object.fromEntries(primes.map(p => [p.slug, p]));
+  const sets = v.sets.map(s => bySlug[s]).filter(Boolean).sort((a, b) => (a.kind === "warframe" ? 0 : 1) - (b.kind === "warframe" ? 0 : 1));
+  const cd = h("span", { class: "countdown" });
+  const tick = () => {
+    if (!v.expiry) { cd.replaceChildren("бессрочно"); return; }
+    const left = new Date(v.expiry).getTime() - Date.now();
+    cd.classList.toggle("soon", left < 6 * 3600000);
+    cd.replaceChildren("осталось ", h("b", {}, leftText(v.expiry)));
+  };
+  tick();
+  countdownTimer = setInterval(tick, 30000);
+  const until = v.expiry ? new Date(v.expiry).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }) : null;
+  box.replaceChildren(
+    h("div", { class: "varzia-head" },
+      h("div", {}, h("h2", {}, "Сейчас у Варзии"), h("div", { class: "where" }, `Марс, Базар Мару — Возрождение Прайм${until ? ` · до ${until}` : ""}`)),
+      cd),
+    h("div", { class: "varzia-items" }, sets.map(p => h("div", { class: "vz-card", onclick: () => openItem(p.slug, null, { count: 1 }) },
+      itemIcon({ thumb: p.thumb, part: "set", category: "prime" }),
+      h("div", {}, h("div", { class: "nm" }, p.name.replace(/: Комплект$/, "")), h("div", { class: "sub" }, p.kind === "warframe" ? "варфрейм" : "оружие"))))),
+    h("div", { class: "varzia-foot" },
+      (v.relics || []).length ? h("span", {}, "Реликвии за Аю: ") : null,
+      (v.relics || []).map(r => h("span", { class: "tag" }, relicLabel(r))),
+      v.next && v.next.names.length ? h("span", { class: "next-up" }, "Далее: ", h("b", {}, (v.next.names_ru || v.next.names).join(" и ")), " Прайм") : null));
+}
+
+function primeCard(p, i) {
+  const full = p.total_parts > 0 && p.owned_parts === p.total_parts;
+  const card = h("div", { class: `prime-card st-${p.status}${primesAnimate && i < 30 ? " enter" : ""}`, title: STATUS_HINT[p.status],
+    onclick: () => openItem(p.slug, null, { count: 1 }) },
+    h("div", { class: "top-row" }, itemIcon({ thumb: p.thumb, part: "set", category: "prime" }),
+      h("div", {}, h("div", { class: "nm" }, p.name.replace(/: Комплект$/, "")), h("div", { class: "en" }, p.name_en.replace(/ Set$/, "")))),
+    h("div", { class: "meta-row" },
+      h("span", { class: `status-badge ${p.status}` }, h("i"), PRIME_STATUS_RU[p.status]),
+      p.evergreen ? h("span", { class: "tag", title: "Всегда есть в постоянном ассортименте Варзии" }, "у Варзии всегда") : null),
+    p.total_parts ? h("div", { class: `own${full ? " full" : ""}`, title: "Сколько разных деталей этого комплекта есть в инвентаре" },
+      h("span", {}, full ? "все детали есть" : `деталей: ${p.owned_parts}/${p.total_parts}`),
+      h("span", { class: "bar" }, h("i", { style: `width:${Math.round((p.owned_parts / p.total_parts) * 100)}%` }))) : null,
+    p.status === "active" && p.relics.length ? h("div", { class: "relic-chips", title: "Реликвии, из которых выпадают детали" },
+      p.relics.slice(0, 4).map(r => h("span", { class: "tag" }, relicLabel(r))),
+      p.relics.length > 4 ? h("span", { class: "tag" }, `+${p.relics.length - 4}`) : null) : null,
+    h("div", { class: "price-row" }, h("span", { class: "lbl" }, "комплект на рынке"), plat(p.set_price)));
+  if (primesAnimate && i < 30) card.style.setProperty("--i", i);
+  return card;
+}
+
+function renderPrimes() {
+  const d = primesData;
+  if (!d) return;
+  const f = primeFilter;
+  const list = d.primes.filter(p =>
+    (!f.status || p.status === f.status) && (!f.kind || p.kind === f.kind) &&
+    (!f.mine || p.owned_parts > 0) &&
+    (!f.q || p.name.toLowerCase().includes(f.q) || p.name_en.toLowerCase().includes(f.q)));
+  $("#prime-grid").replaceChildren(...list.map(primeCard));
+  primesAnimate = false;
+  $("#primes-empty").hidden = d.primes.length > 0 && list.length > 0;
+  $("#primes-empty").textContent = d.primes.length ? "Под фильтр ничего не подошло." : "Данные о праймах загружаются — это занимает пару секунд после запуска.";
+  const counts = { active: 0, varzia: 0, vaulted: 0 };
+  for (const p of d.primes) if (!f.kind || p.kind === f.kind) counts[p.status]++;
+  for (const c of $$("#primes-status .chip")) {
+    let n = c.querySelector(".n"); if (!n) { n = h("span", { class: "n" }); c.append(n); }
+    n.textContent = c.dataset.v ? counts[c.dataset.v] : counts.active + counts.varzia + counts.vaulted;
+  }
+}
+
+async function loadPrimes() {
+  let d;
+  try { d = await api("/api/primes"); } catch (e) { toast(e.message, true); return; }
+  primesData = d;
+  $("#primes-sub").textContent = "Что сейчас выпадает из реликвий, что в хранилище и что продаёт Варзия на Марсе. Данные Digital Extremes"
+    + (d.updated_at ? `, обновлены ${ago(d.updated_at)}.` : ".") + (d.error ? " Последнее обновление не удалось — показаны сохранённые данные." : "");
+  renderVarzia(d.varzia, d.primes);
+  renderPrimes();
+  if (!d.primes.length) setTimeout(() => currentTab === "primes" && loadPrimes(), 3000);
+}
 
 // ---------- quit ----------
 $("#quit").addEventListener("click", async () => {

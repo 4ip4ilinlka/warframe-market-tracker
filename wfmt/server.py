@@ -29,7 +29,8 @@ from .prices import default_subtype, fetch_details, fetch_price
 from .profiles import _check as check_profile, apply_profile, snapshot
 from .scheduler import Scheduler
 from .sell import auto_targets, build_sell_list, fill_prices, select_targets
-from .sets import buildable_sets, fill_sets
+from .sets import _owned as owned_counts, buildable_sets, catalog_parts, fill_sets
+from .primes import PrimeTracker, fill_prime_prices, localize_next
 from .visual import category_of, part_of, rarity_of, relic_tier
 
 log = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ class AppState:
     medians_at: float = 0.0
     tasks: set = field(default_factory=set)
     fill_task: Any = None
+    primes: Any = None
     orders_cache: list | None = None
     orders_at: float = 0.0
 
@@ -78,6 +80,7 @@ async def build_state() -> AppState:
     st.scheduler = Scheduler(http, db, catalog)
     st.account = Account(http, db)
     st.inventory = InventoryLoader(http, db)
+    st.primes = PrimeTracker(http, catalog, config.data_dir())
     return st
 
 
@@ -196,6 +199,8 @@ def create_app(
                 _start_fill(st)  # finish any price loading an earlier run left behind
             if st.http:
                 st.spawn(_auto_refresh(st))
+            if st.primes is not None:
+                st.spawn(_primes_loop(st))
         yield
         if st.scheduler:
             await st.scheduler.stop()
@@ -490,6 +495,18 @@ def create_app(
             _start_fill(st, targets=targets)
         return {"ok": True, "items": len(targets), "busy": st.fill["running"] and not targets}
 
+    async def _primes_loop(st: AppState):
+        """Prime statuses are refreshed once per program start (as soon as the catalog is ready);
+        the "Обновить" button on the tab refreshes them on demand."""
+        while not st.catalog.items:
+            await asyncio.sleep(2)
+        try:
+            await st.primes.refresh()
+            if st.primes.data:
+                await fill_prime_prices(st.http, st.db, st.primes.data)
+        except Exception as e:
+            log.warning("primes refresh at start: %s", type(e).__name__)
+
     async def _auto_refresh(st: AppState):
         while True:
             await asyncio.sleep(config.AUTO_REFRESH_S)
@@ -628,6 +645,29 @@ def create_app(
     @app.delete("/api/alerts/{alert_id}")
     async def alert_remove(request: Request, alert_id: int):
         S(request).db.alert_remove(alert_id)
+        return {"ok": True}
+
+    @app.get("/api/primes")
+    async def primes(request: Request):
+        st = S(request)
+        tr = st.primes
+        data = (tr.data if tr is not None else None) or {"primes": [], "varzia": None}
+        owned = owned_counts(st.catalog, st.db)
+        out = []
+        for p in data["primes"]:
+            parts = catalog_parts(st.catalog, p["slug"])
+            snap = st.db.price_latest(p["slug"], None)
+            out.append({**p, "total_parts": len(parts), "owned_parts": sum(1 for x in parts if owned.get(x, 0) > 0),
+                        "owned_sets": owned.get(p["slug"], 0), "set_price": snap.sell_min if snap else None})
+        return {"primes": out, "varzia": localize_next(data.get("varzia"), st.catalog),
+                "updated_at": datetime.fromtimestamp(tr.updated_at, timezone.utc).isoformat() if tr and tr.updated_at else None,
+                "error": tr.error if tr else None}
+
+    @app.post("/api/primes/refresh")
+    async def primes_refresh(request: Request):
+        st = S(request)
+        if st.primes is not None:
+            await st.primes.refresh()
         return {"ok": True}
 
     @app.get("/api/sets")

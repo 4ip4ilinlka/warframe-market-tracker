@@ -15,6 +15,9 @@ ALLOWED_HOSTS = frozenset(
         "warframe.market",
         "api.warframe.com",
         "mobile.warframe.com",
+        # official Digital Extremes drop tables (the page redirects to DE's file storage)
+        "www.warframe.com",
+        "warframe-web-assets.nyc3.cdn.digitaloceanspaces.com",
     }
 )
 

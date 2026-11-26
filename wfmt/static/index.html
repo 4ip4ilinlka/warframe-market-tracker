@@ -14,6 +14,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="inventory" aria-selected="true">Что продать</button>
     <button role="tab" data-tab="orders">Мои лоты</button>
+    <button role="tab" data-tab="primes">Праймы</button>
     <button role="tab" data-tab="watch">Отслеживание</button>
     <button role="tab" data-tab="rivens">Моды разлома</button>
     <button role="tab" data-tab="alerts">Уведомления</button>
@@ -141,6 +142,34 @@
       <div class="cards" id="orders-list"></div>
       <p class="empty" id="orders-empty" hidden>Активных лотов нет. Выставить предмет можно со вкладки «Что продать».</p>
     </div>
+  </section>
+
+  <!-- Primes: active pool, vaulted, Varzia -->
+  <section id="tab-primes" class="tab" hidden>
+    <div class="page-head">
+      <div><h1>Праймы</h1><p class="page-sub" id="primes-sub">Что сейчас выпадает из реликвий, что в хранилище и что продаёт Варзия на Марсе.</p></div>
+      <div class="head-actions"><button class="ghost" id="primes-refresh">Обновить</button></div>
+    </div>
+    <section class="varzia" id="varzia" hidden></section>
+    <div class="filters">
+      <div class="filter-row">
+        <div class="seg" id="primes-status" role="group" aria-label="Статус">
+          <button class="chip" data-v="" aria-pressed="true">Все</button>
+          <button class="chip" data-v="active" aria-pressed="false">Выпадают</button>
+          <button class="chip" data-v="varzia" aria-pressed="false">У Варзии</button>
+          <button class="chip" data-v="vaulted" aria-pressed="false">В хранилище</button>
+        </div>
+        <div class="seg" id="primes-kind" role="group" aria-label="Тип">
+          <button class="chip" data-v="warframe" aria-pressed="true">Варфреймы</button>
+          <button class="chip" data-v="weapon" aria-pressed="false">Оружие</button>
+          <button class="chip" data-v="" aria-pressed="false">Всё</button>
+        </div>
+        <label class="search-box"><span class="search-ico" aria-hidden="true"></span><input id="primes-search" type="search" placeholder="Найти прайм" autocomplete="off"></label>
+        <label class="check"><input type="checkbox" id="primes-mine"> только где у меня есть детали</label>
+      </div>
+    </div>
+    <div class="prime-grid" id="prime-grid"></div>
+    <p class="empty" id="primes-empty" hidden>Данные о праймах загружаются — это занимает пару секунд после запуска.</p>
   </section>
 
   <!-- Watch list -->

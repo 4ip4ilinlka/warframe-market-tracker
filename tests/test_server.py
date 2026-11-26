@@ -437,3 +437,27 @@ def test_sets_and_value_history_endpoints(client, state):
     assert d["value"]["history"][-1][1] == 20
     row = d["rows"][0]
     assert "ducats" in row and "vaulted" in row
+
+
+def test_primes_endpoint_with_ownership(client, state):
+    from wfmt.models import InvItem, PriceSnapshot
+
+    class FakePrimes:
+        updated_at = 1_800_000_000.0
+        error = None
+        data = {"primes": [{"slug": "ash_sys", "name": "Эш", "name_en": "Ash", "thumb": None, "kind": "warframe",
+                            "status": "active", "relics": ["axi_a1_relic"], "evergreen": False}],
+                "varzia": {"sets": [], "relics": [], "evergreen_sets": [], "expiry": None, "next": None}}
+        refreshed = 0
+
+        async def refresh(self):
+            self.refreshed += 1
+
+    state.primes = FakePrimes()
+    state.db.price_save(PriceSnapshot("ash_sys", None, 40, None, None, 0, datetime.now(timezone.utc)))
+    d = client.get("/api/primes").json()
+    (p,) = d["primes"]
+    assert p["status"] == "active" and p["set_price"] == 40
+    assert "owned_parts" in p and "total_parts" in p
+    assert client.post("/api/primes/refresh").status_code == 200
+    assert state.primes.refreshed == 1
