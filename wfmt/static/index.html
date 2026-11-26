@@ -18,6 +18,9 @@
     <button role="tab" data-tab="rivens">Моды разлома</button>
     <button role="tab" data-tab="alerts">Уведомления</button>
   </nav>
+  <button class="profile-btn" id="profile-btn" title="Профили: сохранить или загрузить настройки">
+    <span class="avatar" aria-hidden="true"></span><span id="profile-name">Профиль</span>
+  </button>
   <div class="status" id="status"></div>
   <button class="ghost small" id="quit" title="Остановить программу">Выход</button>
 </header>
@@ -52,7 +55,7 @@
             <button class="chip" data-status="unlisted" aria-pressed="false">Не выставлено</button>
             <button class="chip" data-status="listed" aria-pressed="false">На продаже</button>
           </div>
-          <label class="search-box"><span class="search-ico" aria-hidden="true"></span><input id="inv-search" type="search" placeholder="Найти в инвентаре" autocomplete="off"></label>
+          <label class="search-box"><span class="search-ico" aria-hidden="true"></span><input id="inv-search" type="search" placeholder="Найти в инвентаре  ( / )" autocomplete="off"></label>
           <select id="inv-sort" aria-label="Сортировка">
           <option value="total:desc">Итого: сначала дорогое</option>
           <option value="total:asc">Итого: сначала дешёвое</option>
@@ -122,6 +125,7 @@
           <option value="total:desc">Сумма лота: больше</option>
           <option value="diff:desc">Сильнее всего дороже рынка</option>
         </select>
+          <button class="ghost" id="orders-match">Подровнять под рынок…</button>
           <button class="ghost" id="orders-refresh">Обновить</button>
           <button class="ghost" id="signout">Выйти</button>
         </div>
@@ -211,6 +215,64 @@
     </div>
   </form>
 </dialog>
+
+<dialog id="profiles-dialog" class="wide-dialog" aria-label="Профили">
+  <div class="dlg-head"><h2>Профили</h2><button class="icon-btn" id="profiles-close" title="Закрыть"></button></div>
+  <p class="hint">Профиль хранит отслеживание, моды разлома, уведомления, вкладку, фильтры и сортировку — и по желанию снимок инвентаря (удобно для нескольких аккаунтов). Вход на маркет в профиль не попадает.</p>
+  <div class="profile-list" id="profile-list"></div>
+  <form class="profile-save" id="profile-form">
+    <input id="profile-new-name" placeholder="Название нового профиля, например «Основной»" maxlength="40" required>
+    <label class="check"><input type="checkbox" id="profile-with-inv"> с инвентарём</label>
+    <button class="primary" type="submit" id="profile-save-btn">Сохранить текущее</button>
+  </form>
+  <div class="profile-io">
+    <button class="ghost" type="button" id="profile-import-btn">Загрузить профиль из файла…</button>
+    <input type="file" id="profile-file" accept=".json,application/json" hidden>
+  </div>
+</dialog>
+
+<dialog id="bulk-dialog" class="wide-dialog" aria-label="Выставить выбранные">
+  <form id="bulk-form" method="dialog">
+    <div class="dlg-head"><h2 id="bulk-title">Выставить выбранные</h2><button class="icon-btn" type="button" id="bulk-close" title="Закрыть"></button></div>
+    <div class="bulk-tools">
+      <span class="hint" style="margin:0">Цена для всех:</span>
+      <div class="seg" id="bulk-strategy">
+        <button type="button" class="chip" data-s="market" aria-pressed="true">Как рынок</button>
+        <button type="button" class="chip" data-s="under" aria-pressed="false">На 1 дешевле</button>
+        <button type="button" class="chip" data-s="median" aria-pressed="false">Типичная</button>
+      </div>
+      <label class="check" style="margin-left:auto"><input type="checkbox" id="bulk-visible" checked> Сразу видны покупателям</label>
+    </div>
+    <div class="bulk-list" id="bulk-list"></div>
+    <div class="bulk-foot">
+      <span id="bulk-sum"></span>
+      <span class="spacer"></span>
+      <button type="button" class="ghost" id="bulk-cancel">Отмена</button>
+      <button type="submit" class="primary" id="bulk-go">Выставить</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="match-dialog" class="wide-dialog" aria-label="Подровнять под рынок">
+  <form id="match-form" method="dialog">
+    <div class="dlg-head"><h2>Подровнять цены под рынок</h2><button class="icon-btn" type="button" id="match-close" title="Закрыть"></button></div>
+    <p class="hint">Эти лоты дороже самого дешёвого другого продавца. Новая цена — как у него (или на 1 дешевле, если отметить ниже).</p>
+    <div class="bulk-list" id="match-list"></div>
+    <div class="bulk-foot">
+      <label class="check"><input type="checkbox" id="match-under"> на 1 дешевле рынка</label>
+      <span class="spacer"></span>
+      <button type="button" class="ghost" id="match-cancel">Отмена</button>
+      <button type="submit" class="primary" id="match-go">Применить</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="select-bar" id="select-bar" hidden>
+  <span class="sel-count" id="sel-count"></span>
+  <span class="spacer"></span>
+  <button class="ghost small" id="sel-clear">Снять выбор</button>
+  <button class="primary" id="sel-list">Выставить выбранные</button>
+</div>
 
 <dialog id="refresh-dialog" aria-label="Обновление цен">
   <form method="dialog" id="refresh-form">

@@ -26,6 +26,7 @@ from .inventory import Cooldown, GameRequestFailed, InventoryDisabled, Inventory
 from .alerts import PRICE_KINDS
 from .models import Alert, PriceSnapshot, RivenWatch
 from .prices import default_subtype, fetch_details, fetch_price
+from .profiles import _check as check_profile, apply_profile, snapshot
 from .scheduler import Scheduler
 from .sell import auto_targets, build_sell_list, fill_prices, select_targets
 from .visual import category_of, part_of, rarity_of, relic_tier
@@ -130,6 +131,34 @@ class OrderIn(BaseModel):
 class RefreshIn(BaseModel):
     subs: list[str] | None = None
     force: bool = False
+
+
+class ProfileIn(BaseModel):
+    name: str
+    ui: dict = {}
+    include_inventory: bool = False
+
+
+class ProfileImport(BaseModel):
+    name: str
+    data: dict
+
+
+class BulkItem(BaseModel):
+    item_id: str
+    platinum: int
+    quantity: int = 1
+    rank: int | None = None
+
+
+class BulkIn(BaseModel):
+    items: list[BulkItem]
+    visible: bool = True
+
+
+def clean_profile_name(name: str) -> str | None:
+    name = " ".join(name.split())
+    return name if 0 < len(name) <= 40 else None
 
 
 class OrderPatch(BaseModel):
@@ -248,6 +277,7 @@ def create_app(
             "inventory_at": inv_at.isoformat() if inv_at else None,
             "inventory_retry_in": st.inventory.retry_in() if st.inventory else 0,
             "fill": st.fill,
+            "active_profile": st.db.setting_get("active_profile"),
         }
 
     @app.get("/api/search")
@@ -604,6 +634,88 @@ def create_app(
             "rank": rank, "subtype": default_subtype(st.catalog, slug),
             "listed": listings.get(item.id), "latest": _snap(snap), **details,
         }
+
+    # --- profiles ---
+    @app.get("/api/profiles")
+    async def profiles(request: Request):
+        st = S(request)
+        return {"profiles": st.db.profile_list(), "active": st.db.setting_get("active_profile")}
+
+    @app.post("/api/profiles")
+    async def profile_save(request: Request, body: ProfileIn):
+        st = S(request)
+        name = clean_profile_name(body.name)
+        if not name:
+            return err(400, "Введите название профиля (до 40 символов)")
+        st.db.profile_save(name, snapshot(st.db, body.ui, body.include_inventory))
+        st.db.setting_set("active_profile", name)
+        return {"ok": True, "name": name}
+
+    @app.post("/api/profiles/import")
+    async def profile_import(request: Request, body: ProfileImport):
+        st = S(request)
+        name = clean_profile_name(body.name)
+        if not name:
+            return err(400, "Введите название профиля (до 40 символов)")
+        try:
+            check_profile(body.data)
+        except ValueError:
+            return err(400, "Это не файл профиля WF Market Tracker или он повреждён")
+        st.db.profile_save(name, body.data)
+        return {"ok": True, "name": name}
+
+    @app.post("/api/profiles/{name}/load")
+    async def profile_load(request: Request, name: str):
+        st = S(request)
+        data = st.db.profile_get(name)
+        if data is None:
+            return err(404, "Профиль не найден")
+        try:
+            ui = apply_profile(st.db, data)
+        except (ValueError, KeyError, TypeError):
+            return err(400, "Профиль повреждён")
+        st.db.setting_set("active_profile", name)
+        if st.scheduler:
+            st.scheduler.riven_lots.clear()
+            st.scheduler.refresh_prices_now()
+        return {"ok": True, "ui": ui, "inventory": "inventory" in data}
+
+    @app.get("/api/profiles/{name}/export")
+    async def profile_export(request: Request, name: str):
+        data = S(request).db.profile_get(name)
+        if data is None:
+            return err(404, "Профиль не найден")
+        from urllib.parse import quote
+        return JSONResponse(data, headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}.wfmt-profile.json"})
+
+    @app.delete("/api/profiles/{name}")
+    async def profile_delete(request: Request, name: str):
+        st = S(request)
+        st.db.profile_delete(name)
+        if st.db.setting_get("active_profile") == name:
+            st.db.setting_set("active_profile", "")
+        return {"ok": True}
+
+    # --- bulk listing (one order at a time, through the normal rate limit) ---
+    @app.post("/api/account/orders/bulk")
+    async def orders_bulk(request: Request, body: BulkIn):
+        st = S(request)
+        results = []
+        for it in body.items[:100]:
+            if it.platinum < 1 or it.quantity < 1:
+                results.append({"item_id": it.item_id, "ok": False, "error": "Неверная цена или количество"})
+                continue
+            item = st.catalog.by_id(it.item_id)
+            subtype = item.subtypes[0] if item and item.subtypes else None
+            try:
+                await st.account.create_order(it.item_id, "sell", it.platinum, it.quantity, it.rank,
+                                              visible=body.visible, subtype=subtype)
+                results.append({"item_id": it.item_id, "ok": True})
+            except (OrderRejected, MarketError) as e:
+                results.append({"item_id": it.item_id, "ok": False, "error": str(e)})
+        _orders_changed(st)
+        return {"results": results, "ok": sum(r["ok"] for r in results)}
 
     @app.post("/api/quit")
     async def quit_app(request: Request):

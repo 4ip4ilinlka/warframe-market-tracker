@@ -373,3 +373,54 @@ def test_inventory_load_interrupts_background_refresh(client, state):
     assert client.post("/api/inventory/load").status_code == 200
     assert old.cancelled
     assert len(spawned) == 1  # a new price job for the freshly loaded inventory
+
+
+def test_profiles_api_roundtrip(client, state):
+    state.db.watch_add("ash_sys", None)
+    r = client.post("/api/profiles", json={"name": "Основной", "ui": {"tab": "watch"}, "include_inventory": False})
+    assert r.status_code == 200
+    assert [p["name"] for p in client.get("/api/profiles").json()["profiles"]] == ["Основной"]
+    state.db.watch_remove("ash_sys", None)
+    r = client.post("/api/profiles/Основной/load").json()
+    assert r["ui"] == {"tab": "watch"}
+    assert [w.slug for w in state.db.watch_list()] == ["ash_sys"]
+    assert client.get("/api/status").json()["active_profile"] == "Основной"
+    exp = client.get("/api/profiles/Основной/export")
+    assert exp.status_code == 200 and exp.json()["version"] == 1
+    assert "attachment" in exp.headers["content-disposition"]
+    assert client.delete("/api/profiles/Основной").status_code == 200
+    assert client.get("/api/profiles").json()["profiles"] == []
+
+
+def test_profile_import_validates(client):
+    bad = client.post("/api/profiles/import", json={"name": "X", "data": {"version": 7}})
+    assert bad.status_code == 400
+    ok = client.post("/api/profiles/import", json={"name": "Друг", "data": {"version": 1, "watch": [], "rivens": [], "alerts": []}})
+    assert ok.status_code == 200
+    assert client.post("/api/profiles", json={"name": "  ", "ui": {}}).status_code == 400
+    assert client.post("/api/profiles/нет/load").status_code == 404
+
+
+def test_bulk_orders(client, state):
+    from wfmt.account import OrderRejected
+    from wfmt.models import MyOrder
+
+    made = []
+
+    class Acc:
+        def is_signed_in(self):
+            return True
+
+        async def create_order(self, item_id, kind, platinum, quantity, rank, visible=True, subtype=None):
+            if item_id == "bad":
+                raise OrderRejected("Маркет отклонил запрос: rank")
+            made.append((item_id, platinum, quantity, visible))
+            return MyOrder("o" + item_id, item_id, None, kind, platinum, quantity, rank, visible)
+
+    state.account = Acc()
+    r = client.post("/api/account/orders/bulk", json={"visible": False, "items": [
+        {"item_id": "i1", "platinum": 10, "quantity": 3, "rank": None},
+        {"item_id": "bad", "platinum": 5, "quantity": 1, "rank": None}]}).json()
+    assert made == [("i1", 10, 3, False)]
+    assert [x["ok"] for x in r["results"]] == [True, False]
+    assert "rank" in r["results"][1]["error"]

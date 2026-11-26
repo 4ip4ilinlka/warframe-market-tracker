@@ -255,6 +255,7 @@ function refreshTab() {
 let status = {};
 async function loadStatus() {
   try { status = await api("/api/status"); } catch { return; }
+  $("#profile-name").textContent = status.active_profile || "Профиль";
   const el = $("#status");
   el.replaceChildren();
   const sch = status.scheduler || {};
@@ -285,6 +286,17 @@ function openOrder(r) {
   if (r.listed) bits.push(`у вас уже выставлено ${r.listed.quantity} шт. по ${r.listed.platinum} пл`);
   $("#order-market").textContent = bits.length ? bits.join(" · ") : "";
   $("#order-price").value = r.market_min ?? r.unit_price ?? "";
+  $("#order-quick")?.remove();
+  const quick = [["Как рынок", r.market_min], ["На 1 дешевле", r.market_min != null ? Math.max(1, r.market_min - 1) : null],
+                 ["Типичная", r.unit_price]].filter(([, v]) => v != null);
+  if (quick.length) {
+    const box = h("div", { class: "quick-prices", id: "order-quick" }, quick.map(([label, v]) =>
+      h("button", { type: "button", class: "chip", onclick: e => {
+        $("#order-price").value = v;
+        for (const c of box.children) c.setAttribute("aria-pressed", String(c === e.currentTarget));
+      } }, label, h("b", {}, v))));
+    $("#order-market").after(box);
+  }
   $("#order-qty").value = r.count || 1;
   $("#order-rank-box").hidden = r.rank == null;
   $("#order-rank").value = r.rank ?? "";
@@ -490,8 +502,12 @@ function sellRow(r) {
     hint = h("span", { class: diff > 0 ? "hint-up" : "hint-down" },
       diff > 0 ? `ваша цена выше рынка на ${diff}` : `ваша цена ниже рынка на ${-diff}`);
   }
-  return h("div", { class: `row${r.listed ? " is-listed" : ""}` },
-    clickableItem(h("div", { class: "item" }, itemIcon(r),
+  const key = selKey(r);
+  const cb = h("input", { type: "checkbox", class: "sel", title: "Выбрать для массового выставления", checked: selected.has(key) });
+  cb.addEventListener("click", e => e.stopPropagation());
+  cb.addEventListener("change", () => toggleSelect(r, cb.checked, cb.closest(".row")));
+  return h("div", { class: `row${r.listed ? " is-listed" : ""}${selected.has(key) ? " selected" : ""}` },
+    clickableItem(h("div", { class: "item" }, cb, itemIcon(r),
       h("div", { class: "item-text" },
         h("span", { class: "item-name", title: r.name }, r.name),
         h("div", { class: "item-meta" }, h("span", {}, `×${fmt(r.count)}`), partTag(r.part), rankTag(r.rank, r.max_rank), saleTag(r.listed), hint))), r.slug, r.price_rank, { count: r.count, rank: r.rank, unit_price: r.unit_price }),
@@ -553,7 +569,7 @@ function renderSell() {
   sellMaxTotal = Math.max(1, ...d.rows.map(r => r.total || 0));
   const list = $("#sell-list");
   list.replaceChildren(
-    rows.length ? h("div", { class: "list-head" }, sortHead("Предмет", "name"), sortHead("Рынок", "market", "hide-s"),
+    rows.length ? h("div", { class: "list-head" }, h("span", { class: "head-sel" }, selectAllBox(rows), sortHead("Предмет", "name")), sortHead("Рынок", "market", "hide-s"),
       sortHead("Цена", "unit"), sortHead("Итого", "total", "hide-s"), h("span", {}, "")) : "",
     ...rows.slice(0, sellShown).map((r, i) => {
       const el = sellRow(r);
@@ -708,6 +724,12 @@ function orderCard(o) {
       diff > 0 ? `дороже рынка на ${diff}` : diff < 0 ? `дешевле рынка на ${-diff}` : "вы самый дешёвый");
   }
   const lotTotal = h("span", { class: "lot-total" }, "сумма ", h("b", {}, fmt(o.platinum * o.quantity)), " пл");
+  const matchBtn = o.market_min != null && o.platinum > o.market_min
+    ? h("button", { class: "ghost match-btn", title: `Поставить ${o.market_min} пл — как самый дешёвый продавец`, onclick: e => busy(e.currentTarget, async () => {
+        await api(`/api/account/orders/${o.id}`, { method: "PATCH", body: { platinum: o.market_min } });
+        toast(`Цена «${o.name}» → ${o.market_min} пл`); loadOrders();
+      }).catch(err => toast(err.message, true)) }, "под рынок")
+    : null;
   const updTotal = () => { lotTotal.replaceChildren("сумма ", h("b", {}, fmt((parseInt(price.value, 10) || 0) * (parseInt(qty.value, 10) || 0))), " пл"); };
   price.addEventListener("input", updTotal);
   qty.addEventListener("input", updTotal);
@@ -720,7 +742,8 @@ function orderCard(o) {
     h("div", { class: "fields" },
       h("label", {}, "Цена, пл", price), h("label", {}, "Количество", qty),
       h("label", { class: "switch" }, vis, "Виден")),
-    h("div", { class: "foot" }, market, lotTotal,
+    h("div", { class: "foot" }, market, matchBtn, lotTotal),
+    h("div", { class: "card-acts" },
       o.slug ? ext(itemUrl(o.slug), "Открыть на маркете") : null,
       h("button", { class: "icon-btn", title: "Снять лот", onclick: async () => {
         if (!confirm(`Снять лот «${o.name}»?`)) return;
@@ -1144,6 +1167,248 @@ async function openItem(slug, rank, extra = {}) {
     h("div", { class: "traders" }, h("h3", {}, `Покупают сейчас (${d.buyers.length})`),
       d.buyers.length ? d.buyers.slice(0, 8).map(t => traderRow(t, "buy", d)) : h("p", { class: "hint" }, "Нет покупателей онлайн.")));
 }
+
+
+// ---------- selection & bulk listing ----------
+const selected = new Map();
+const selKey = r => `${r.slug}|${r.rank ?? ""}`;
+
+function updateSelectBar() {
+  const bar = $("#select-bar");
+  const n = selected.size;
+  bar.hidden = n === 0;
+  document.body.classList.toggle("has-selection", n > 0);
+  if (!n) return;
+  const sum = [...selected.values()].reduce((s, r) => s + (r.total || 0), 0);
+  $("#sel-count").replaceChildren(`Выбрано ${n}`, h("small", {}, `≈ ${fmt(sum)} пл по типичной цене`));
+}
+
+function toggleSelect(r, on, rowEl) {
+  const key = selKey(r);
+  if (on) selected.set(key, r); else selected.delete(key);
+  rowEl?.classList.toggle("selected", on);
+  updateSelectBar();
+  const all = $("#sell-list .list-head .sel");
+  if (all) syncSelectAll(all, currentRows);
+}
+
+let currentRows = [];
+function syncSelectAll(box, rows) {
+  const n = rows.filter(r => selected.has(selKey(r))).length;
+  box.checked = rows.length > 0 && n === rows.length;
+  box.indeterminate = n > 0 && n < rows.length;
+}
+
+function selectAllBox(rows) {
+  currentRows = rows;
+  const box = h("input", { type: "checkbox", class: "sel", title: "Выбрать все в списке" });
+  syncSelectAll(box, rows);
+  box.addEventListener("change", () => {
+    for (const r of rows) { if (box.checked) selected.set(selKey(r), r); else selected.delete(selKey(r)); }
+    renderSell();
+    updateSelectBar();
+  });
+  return box;
+}
+
+$("#sel-clear").addEventListener("click", () => { selected.clear(); updateSelectBar(); renderSell(); });
+
+const bulkDlg = $("#bulk-dialog");
+let bulkStrategy = "market";
+function strategyPrice(r) {
+  if (bulkStrategy === "under" && r.market_min != null) return Math.max(1, r.market_min - 1);
+  if (bulkStrategy === "median" && r.unit_price != null) return r.unit_price;
+  return r.market_min ?? r.unit_price ?? null;
+}
+
+function bulkSum() {
+  let sum = 0, n = 0;
+  for (const row of $$("#bulk-list .bulk-row")) {
+    const p = parseInt(row.querySelector(".b-price").value, 10), q = parseInt(row.querySelector(".b-qty").value, 10);
+    if (p > 0 && q > 0) { sum += p * q; n++; }
+  }
+  $("#bulk-sum").replaceChildren(`${n} лотов на `, h("b", {}, fmt(sum)), " пл");
+  $("#bulk-go").disabled = n === 0;
+}
+
+function openBulk() {
+  if (!status.signed_in) { toast("Сначала войдите на warframe.market во вкладке «Мои лоты»", true); showTab("orders"); return; }
+  const items = [...selected.values()];
+  $("#bulk-title").textContent = `Выставить выбранные (${items.length})`;
+  const list = $("#bulk-list");
+  list.replaceChildren(h("div", { class: "bulk-head" }, h("span", {}, "Предмет"), h("span", {}, "Кол-во"), h("span", {}, "Цена, пл"), h("span", {})),
+    ...items.map(r => {
+      const qty = h("input", { type: "number", min: 1, max: r.count, value: r.count, class: "b-qty" });
+      const price = h("input", { type: "number", min: 1, value: strategyPrice(r) ?? "", class: "b-price" });
+      qty.addEventListener("input", bulkSum); price.addEventListener("input", bulkSum);
+      const row = h("div", { class: "bulk-row" },
+        h("div", { class: "item" }, itemIcon(r), h("div", { class: "item-text" }, h("span", { class: "item-name" }, r.name),
+          h("span", { class: "bulk-hint" }, [r.market_min != null ? `рынок ${r.market_min}` : null, r.unit_price != null ? `типичная ${r.unit_price}` : null,
+            r.rank != null ? `ранг ${r.rank}` : null].filter(Boolean).join(" · ")))),
+        qty, price,
+        h("button", { type: "button", class: "icon-btn", title: "Убрать из списка", onclick: () => { row.remove(); bulkSum(); } }, svg("close")));
+      row._item = r;
+      return row;
+    }));
+  bulkSum();
+  bulkDlg.showModal();
+}
+$("#sel-list").addEventListener("click", openBulk);
+$("#bulk-close").addEventListener("click", () => bulkDlg.close());
+$("#bulk-cancel").addEventListener("click", () => bulkDlg.close());
+$$("#bulk-strategy .chip").forEach(c => c.addEventListener("click", () => {
+  bulkStrategy = c.dataset.s;
+  for (const x of $$("#bulk-strategy .chip")) x.setAttribute("aria-pressed", String(x === c));
+  for (const row of $$("#bulk-list .bulk-row")) { const v = strategyPrice(row._item); if (v != null) row.querySelector(".b-price").value = v; }
+  bulkSum();
+}));
+$("#bulk-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const rows = $$("#bulk-list .bulk-row");
+  const items = rows.map(row => ({ row, item_id: row._item.item_id, rank: row._item.rank,
+    platinum: parseInt(row.querySelector(".b-price").value, 10), quantity: parseInt(row.querySelector(".b-qty").value, 10) }))
+    .filter(x => x.platinum > 0 && x.quantity > 0);
+  if (!items.length) return;
+  try {
+    const r = await busy($("#bulk-go"), () => api("/api/account/orders/bulk", { method: "POST", body: {
+      visible: $("#bulk-visible").checked, items: items.map(({ item_id, rank, platinum, quantity }) => ({ item_id, rank, platinum, quantity })) } }));
+    r.results.forEach((res, i) => {
+      const row = items[i].row;
+      row.classList.add(res.ok ? "done" : "fail");
+      if (res.ok) selected.delete(selKey(row._item));
+      else row.querySelector(".bulk-hint").textContent = res.error;
+    });
+    updateSelectBar();
+    const failed = r.results.length - r.ok;
+    toast(failed ? `Выставлено ${r.ok}, не удалось ${failed} — причины в списке` : `Выставлено лотов: ${r.ok}`, failed > 0);
+    if (!failed) setTimeout(() => bulkDlg.close(), 700);
+    loadSell();
+  } catch (err) { toast(err.message, true); }
+});
+
+// ---------- match my lots to the market ----------
+const matchDlg = $("#match-dialog");
+function matchCandidates() {
+  return ordersData.filter(o => o.kind === "sell" && o.market_min != null && o.platinum > o.market_min);
+}
+function matchPrice(o) { return $("#match-under").checked ? Math.max(1, o.market_min - 1) : o.market_min; }
+function renderMatch() {
+  const list = matchCandidates();
+  $("#match-list").replaceChildren(...(list.length ? list.map(o => {
+    const row = h("div", { class: "bulk-row match-row" },
+      h("div", { class: "item" }, itemIcon(o), h("span", { class: "item-name" }, o.name)),
+      h("span", { class: "old" }, o.platinum), h("span", { class: "arrow" }, "→"), h("span", { class: "new" }, matchPrice(o)));
+    row._order = o;
+    return row;
+  }) : [h("p", { class: "profile-empty" }, "Все ваши лоты уже не дороже рынка 👍")]));
+  $("#match-go").disabled = !list.length;
+}
+$("#orders-match").addEventListener("click", () => { renderMatch(); matchDlg.showModal(); });
+$("#match-under").addEventListener("change", renderMatch);
+$("#match-close").addEventListener("click", () => matchDlg.close());
+$("#match-cancel").addEventListener("click", () => matchDlg.close());
+$("#match-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const rows = $$("#match-list .match-row");
+  await busy($("#match-go"), async () => {
+    let ok = 0;
+    for (const row of rows) {
+      try { await api(`/api/account/orders/${row._order.id}`, { method: "PATCH", body: { platinum: matchPrice(row._order) } }); row.classList.add("done"); ok++; }
+      catch { row.classList.add("fail"); }
+    }
+    toast(`Цены обновлены: ${ok} из ${rows.length}`, ok < rows.length);
+  });
+  setTimeout(() => { matchDlg.close(); loadOrders(); }, 600);
+});
+
+// ---------- profiles ----------
+const profDlg = $("#profiles-dialog");
+function uiState() {
+  return { tab: currentTab, sell: { ...sellFilter }, watchSort: $("#watch-sort").value, ordersSort: $("#orders-sort").value };
+}
+function applyUi(ui) {
+  if (!ui) return;
+  if (ui.sell) {
+    Object.assign(sellFilter, ui.sell);
+    setChips("#inv-status-chips", "status", sellFilter.status || "");
+    setChips("#inv-cat-chips", "cat", sellFilter.cat || "");
+    $("#inv-search").value = sellFilter.q || "";
+    $("#inv-sort").value = `${sellFilter.sort}:${sellFilter.dir}`;
+  }
+  if (ui.watchSort) $("#watch-sort").value = ui.watchSort;
+  if (ui.ordersSort) $("#orders-sort").value = ui.ordersSort;
+  showTab(ui.tab && $(`.tabs button[data-tab="${ui.tab}"]`) ? ui.tab : currentTab);
+}
+const fmtDate = iso => new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+async function renderProfiles() {
+  const { profiles, active } = await api("/api/profiles");
+  const list = $("#profile-list");
+  if (!profiles.length) { list.replaceChildren(h("p", { class: "profile-empty" }, "Профилей пока нет. Настройте всё как удобно и сохраните — потом вернётесь к этому одним кликом.")); return; }
+  list.replaceChildren(...profiles.map(p => h("div", { class: `profile-card${p.name === active ? " active" : ""}` },
+    h("span", { class: "avatar" }),
+    h("div", {}, h("div", { class: "pname" }, p.name, p.name === active ? h("span", { class: "badge" }, "активен") : null),
+      h("div", { class: "pmeta" }, `сохранён ${fmtDate(p.saved_at)} · отслеживание ${p.watch} · моды разлома ${p.rivens} · уведомления ${p.alerts}` + (p.inventory ? " · с инвентарём" : ""))),
+    h("div", { class: "pacts" },
+      h("button", { class: "primary small", onclick: e => busy(e.currentTarget, async () => {
+        const r = await api(`/api/profiles/${encodeURIComponent(p.name)}/load`, { method: "POST" });
+        profDlg.close();
+        sellData = null;
+        applyUi(r.ui);
+        loadStatus();
+        toast(`Загружен профиль «${p.name}»`);
+      }).catch(err => toast(err.message, true)) }, "Загрузить"),
+      h("button", { class: "ghost small", title: "Сохранить текущие настройки в этот профиль", onclick: e => busy(e.currentTarget, async () => {
+        await api("/api/profiles", { method: "POST", body: { name: p.name, ui: uiState(), include_inventory: p.inventory } });
+        toast(`Профиль «${p.name}» обновлён`); renderProfiles(); loadStatus();
+      }) }, "Перезаписать"),
+      h("button", { class: "icon-btn", title: "Сохранить в файл", onclick: async () => {
+        const r = await fetch(`/api/profiles/${encodeURIComponent(p.name)}/export`, { headers: { "X-WFMT": "1" } });
+        const url = URL.createObjectURL(await r.blob());
+        const a = h("a", { href: url, download: `${p.name}.wfmt-profile.json` }); document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+      } }, svg("external")),
+      h("button", { class: "icon-btn", title: "Удалить профиль", onclick: async () => {
+        if (!confirm(`Удалить профиль «${p.name}»?`)) return;
+        await api(`/api/profiles/${encodeURIComponent(p.name)}`, { method: "DELETE" }); renderProfiles(); loadStatus();
+      } }, svg("close"))))));
+}
+$("#profile-btn").addEventListener("click", () => { renderProfiles(); profDlg.showModal(); });
+$("#profiles-close").addEventListener("click", () => profDlg.close());
+profDlg.addEventListener("click", e => { if (e.target === profDlg) profDlg.close(); });
+$("#profile-form").addEventListener("submit", e => {
+  e.preventDefault();
+  busy($("#profile-save-btn"), async () => {
+    const name = $("#profile-new-name").value;
+    const r = await api("/api/profiles", { method: "POST", body: { name, ui: uiState(), include_inventory: $("#profile-with-inv").checked } });
+    $("#profile-new-name").value = "";
+    toast(`Профиль «${r.name}» сохранён`); renderProfiles(); loadStatus();
+  }).catch(err => toast(err.message, true));
+});
+$("#profile-import-btn").addEventListener("click", () => $("#profile-file").click());
+$("#profile-file").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const name = file.name.replace(/\.wfmt-profile\.json$|\.json$/i, "").slice(0, 40) || "Импорт";
+    const r = await api("/api/profiles/import", { method: "POST", body: { name, data } });
+    toast(`Профиль «${r.name}» добавлен — нажмите «Загрузить», чтобы применить`); renderProfiles();
+  } catch (err) { toast(err instanceof SyntaxError ? "Это не файл профиля" : err.message, true); }
+});
+
+// ---------- keyboard ----------
+document.addEventListener("keydown", e => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "");
+  if (e.key === "/" && !typing && !document.querySelector("dialog[open]")) {
+    const target = currentTab === "inventory" ? $("#inv-search") : currentTab === "watch" ? $("#search") : null;
+    if (target) { e.preventDefault(); target.focus(); target.select(); }
+  }
+  if (e.key === "Escape" && !document.querySelector("dialog[open]") && selected.size) {
+    selected.clear(); updateSelectBar(); renderSell();
+  }
+});
 
 // ---------- quit ----------
 $("#quit").addEventListener("click", async () => {

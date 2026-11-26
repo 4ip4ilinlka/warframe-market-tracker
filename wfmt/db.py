@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS alert (
   rank INTEGER, threshold INTEGER, riven_watch_id INTEGER);
 CREATE TABLE IF NOT EXISTS setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS secret (key TEXT PRIMARY KEY, value BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS profile (name TEXT PRIMARY KEY, data TEXT NOT NULL, saved_at TEXT NOT NULL);
 """
 
 _NONE_RANK = -1
@@ -214,3 +215,32 @@ class Db:
 
     def secret_delete(self, key: str) -> None:
         self._exec("DELETE FROM secret WHERE key=?", (key,))
+
+    # --- profiles (saved setups; never contain secrets) ---
+    def profile_save(self, name: str, data: dict) -> None:
+        self._exec(
+            "INSERT OR REPLACE INTO profile(name, data, saved_at) VALUES (?, ?, ?)",
+            (name, json.dumps(data, ensure_ascii=False), datetime.now(timezone.utc).isoformat()),
+        )
+
+    def profile_list(self) -> list[dict]:
+        rows = self._all("SELECT name, saved_at, data FROM profile ORDER BY name COLLATE NOCASE")
+        out = []
+        for name, saved_at, data in rows:
+            d = json.loads(data)
+            out.append({"name": name, "saved_at": saved_at, "watch": len(d.get("watch", [])),
+                        "rivens": len(d.get("rivens", [])), "alerts": len(d.get("alerts", [])),
+                        "inventory": "inventory" in d})
+        return out
+
+    def profile_get(self, name: str) -> dict | None:
+        rows = self._all("SELECT data FROM profile WHERE name=?", (name,))
+        return json.loads(rows[0][0]) if rows else None
+
+    def profile_delete(self, name: str) -> None:
+        self._exec("DELETE FROM profile WHERE name=?", (name,))
+
+    def clear_setup(self) -> None:
+        """Remove watches, riven watches and all alerts (before loading a profile)."""
+        for table in ("watch", "riven_watch", "riven_seen", "alert"):
+            self._exec(f"DELETE FROM {table}")
