@@ -8,7 +8,7 @@ import respx
 
 from wfmt.catalog import Catalog
 from wfmt.http import HttpClient
-from wfmt.primes import DROPTABLES_URL, WORLDSTATE_URL, compute_primes, fetch_droptables, parse_relic_rewards, parse_varzia
+from wfmt.primes import DROPTABLES_URL, WORLDSTATE_URL, compute_primes, fetch_droptables, parse_dropping_relics, parse_relic_rewards, parse_varzia
 
 FX = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 11, 26, 12, 0, tzinfo=timezone.utc)
@@ -64,9 +64,23 @@ def test_parse_varzia(catalog):
     assert v["next"] == {"names": ["Loki", "Nova"], "from": "2026-11-26T19:00:00+00:00"}
 
 
+def test_parse_dropping_relics_only_outside_relic_contents():
+    page = (FX / "droptables_sample.html").read_text(encoding="utf-8")
+    assert parse_dropping_relics(page) == {"axi_a1_relic"}
+
+
+def test_market_unvaulted_flag_alone_does_not_make_active(catalog):
+    # lith_s16 is unvaulted on the market in this variant, but it drops nowhere -> soma stays vaulted
+    catalog.by_slug("lith_s16_relic").vaulted = False
+    page = (FX / "droptables_sample.html").read_text(encoding="utf-8")
+    data = compute_primes(catalog, parse_relic_rewards(page), parse_varzia(worldstate(), catalog), parse_dropping_relics(page))
+    assert {p["slug"]: p["status"] for p in data["primes"]}["soma_prime_set"] == "vaulted"
+
+
 def test_compute_primes_statuses(catalog):
-    rewards = parse_relic_rewards((FX / "droptables_sample.html").read_text(encoding="utf-8"))
-    data = compute_primes(catalog, rewards, parse_varzia(worldstate(), catalog))
+    page = (FX / "droptables_sample.html").read_text(encoding="utf-8")
+    rewards = parse_relic_rewards(page)
+    data = compute_primes(catalog, rewards, parse_varzia(worldstate(), catalog), parse_dropping_relics(page))
     by = {p["slug"]: p for p in data["primes"]}
     assert by["ash_prime_set"]["status"] == "active"          # its part drops from an unvaulted relic
     assert by["ash_prime_set"]["relics"] == ["axi_a1_relic"]
@@ -109,8 +123,8 @@ async def test_fill_prime_prices_for_warframes_and_varzia(catalog, tmp_path):
     from wfmt.primes import fill_prime_prices
 
     db = Db(tmp_path / "t.sqlite3")
-    rewards = parse_relic_rewards((FX / "droptables_sample.html").read_text(encoding="utf-8"))
-    data = compute_primes(catalog, rewards, parse_varzia(worldstate(), catalog))
+    page = (FX / "droptables_sample.html").read_text(encoding="utf-8")
+    data = compute_primes(catalog, parse_relic_rewards(page), parse_varzia(worldstate(), catalog), parse_dropping_relics(page))
     route = respx.get(url__regex=r".*/v2/orders/item/.*/top").mock(return_value=httpx.Response(200, json={"data": {
         "sell": [{"platinum": 50, "user": {"status": "ingame"}}], "buy": []}}))
     http = HttpClient(max_rps=1000)

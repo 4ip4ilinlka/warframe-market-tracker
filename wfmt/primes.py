@@ -4,7 +4,8 @@ Sources (both official Digital Extremes data):
 * World state  https://api.warframe.com/cdn/worldState.php  -> PrimeVaultTraders: Varzia's current
   rotation (Manifest), permanent offers (EvergreenManifest) and the schedule of rotations.
 * Drop tables  https://www.warframe.com/droptables  (redirects to DE's CDN) -> what each relic contains.
-Combined with the market's "vaulted" flag on relics this tells which primes currently drop.
+A prime is "active" only if one of its relics is listed as a reward somewhere outside the relic
+contents section (missions, bounties, ...). The market's "vaulted" flag is not reliable for this.
 """
 from __future__ import annotations
 
@@ -50,6 +51,18 @@ def parse_relic_rewards(page: str) -> dict[str, list[str]]:
         name = htmlmod.unescape(m.group(1)).strip().lower().replace(" ", "_")
         out[name] = [htmlmod.unescape(x).strip() for x in _CELL.findall(section[m.end():end])]
     return out
+
+
+_RELIC_DROP = re.compile(r">((?:Lith|Meso|Neo|Axi) [A-Z0-9]+) Relic(?: \([A-Za-z]+\))?<")
+
+
+def parse_dropping_relics(page: str) -> set[str]:
+    """Relic slugs that currently drop in the game (rewards outside the 'Relics' contents section)."""
+    a = page.find('id="relicRewards"')
+    if a >= 0:
+        b = page.find("<h3", a + 10)
+        page = page[:a] + (page[b:] if b > 0 else "")
+    return {htmlmod.unescape(m).strip().lower().replace(" ", "_") + "_relic" for m in _RELIC_DROP.findall(page)}
 
 
 def _date(v) -> str | None:
@@ -108,7 +121,7 @@ def parse_varzia(ws: dict, catalog: Catalog) -> dict:
     return {"sets": sets, "relics": relics, "evergreen_sets": evergreen_sets, "expiry": expiry, "next": nxt}
 
 
-def compute_primes(catalog: Catalog, rewards: dict[str, list[str]], varzia: dict) -> dict:
+def compute_primes(catalog: Catalog, rewards: dict[str, list[str]], varzia: dict, dropping: set[str]) -> dict:
     by_en = {i.name_en.lower(): i for i in catalog.items}
     set_relics: dict[str, set[str]] = {}
     for relic_slug, names in rewards.items():
@@ -126,7 +139,7 @@ def compute_primes(catalog: Catalog, rewards: dict[str, list[str]], varzia: dict
         if "set" not in item.tags or "prime" not in item.tags:
             continue
         relics = sorted(set_relics.get(item.slug, set()))
-        active = [r for r in relics if (catalog.by_slug(r) is not None and not catalog.by_slug(r).vaulted)]
+        active = [r for r in relics if r in dropping]
         status = "varzia" if item.slug in varzia_sets else ("active" if active else "vaulted")
         primes.append({
             "slug": item.slug, "name": item.name_ru, "name_en": item.name_en, "thumb": item.thumb,
@@ -165,6 +178,7 @@ class PrimeTracker:
         self.clock = clock
         self.data: dict | None = None
         self.rewards: dict[str, list[str]] = {}
+        self.dropping: set[str] = set()
         self.rewards_at = 0.0
         self.updated_at = 0.0
         self.error: str | None = None
@@ -174,13 +188,14 @@ class PrimeTracker:
         try:
             raw = json.loads(self.cache_path.read_text(encoding="utf-8"))
             self.rewards, self.rewards_at = raw.get("rewards", {}), raw.get("rewards_at", 0.0)
+            self.dropping = set(raw.get("dropping") or [])
             self.data, self.updated_at = raw.get("data"), raw.get("updated_at", 0.0)
         except (OSError, ValueError):
             pass
 
     def _save_cache(self) -> None:
         tmp = self.cache_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"rewards": self.rewards, "rewards_at": self.rewards_at,
+        tmp.write_text(json.dumps({"rewards": self.rewards, "rewards_at": self.rewards_at, "dropping": sorted(self.dropping),
                                    "data": self.data, "updated_at": self.updated_at}, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.cache_path)
 
@@ -192,11 +207,12 @@ class PrimeTracker:
 
     async def refresh(self) -> None:
         try:
-            if not self.rewards or self.clock() - self.rewards_at > DROPTABLES_TTL_S:
-                self.rewards = parse_relic_rewards(await fetch_droptables(self.http))
+            if not self.rewards or not self.dropping or self.clock() - self.rewards_at > DROPTABLES_TTL_S:
+                page = await fetch_droptables(self.http)
+                self.rewards, self.dropping = parse_relic_rewards(page), parse_dropping_relics(page)
                 self.rewards_at = self.clock()
             varzia = parse_varzia(await fetch_worldstate(self.http), self.catalog)
-            self.data = compute_primes(self.catalog, self.rewards, varzia)
+            self.data = compute_primes(self.catalog, self.rewards, varzia, self.dropping)
             self.updated_at = self.clock()
             self.error = None
             self._save_cache()

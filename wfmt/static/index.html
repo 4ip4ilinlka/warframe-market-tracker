@@ -17,6 +17,7 @@
     <button role="tab" data-tab="primes">Праймы</button>
     <button role="tab" data-tab="watch">Отслеживание</button>
     <button role="tab" data-tab="rivens">Моды разлома</button>
+    <button role="tab" data-tab="ephemeras">Эфемеры</button>
     <button role="tab" data-tab="alerts">Уведомления</button>
   </nav>
   <button class="kbd-btn" id="palette-btn" title="Быстрый поиск любого предмета">Поиск <kbd>Ctrl K</kbd></button>
@@ -170,6 +171,45 @@
     </div>
     <div class="prime-grid" id="prime-grid"></div>
     <p class="empty" id="primes-empty" hidden>Данные о праймах загружаются — это занимает пару секунд после запуска.</p>
+  </section>
+
+  <!-- Ephemeras -->
+  <section id="tab-ephemeras" class="tab" hidden>
+    <div class="page-head">
+      <div><h1>Эфемеры</h1><p class="page-sub" id="eph-sub">Личи Кувы и Сёстры Парвос с эфемерой на warframe.market.</p></div>
+    </div>
+    <div class="filters">
+      <div class="filter-row">
+        <div class="seg" id="eph-kind" role="group" aria-label="Кто">
+          <button class="chip" data-v="lich" aria-pressed="true">Личи Кувы</button>
+          <button class="chip" data-v="sister" aria-pressed="false">Сёстры Парвос</button>
+        </div>
+        <label class="check"><input type="checkbox" id="eph-online"> только продавцы в игре</label>
+      </div>
+    </div>
+    <div class="eph-grid" id="eph-grid"></div>
+    <div class="eph-panels">
+      <section class="panel eph-watch-panel">
+        <h2 class="panel-title">Следить за эфемерой</h2>
+        <form id="eph-form" class="eph-form">
+          <label class="wide">Эфемера<select id="eph-pick" required></select></label>
+          <label class="wide">Оружие<select id="eph-weapon"><option value="">любое</option></select></label>
+          <label>Цена до<input id="eph-max" type="number" min="1" placeholder="любая"></label>
+          <label class="check"><input id="eph-notify" type="checkbox" checked> Уведомлять о новых</label>
+          <button class="primary" type="submit">Следить</button>
+        </form>
+        <div id="eph-watches" class="eph-watches"></div>
+      </section>
+      <section class="panel eph-lots-panel">
+        <div class="eph-lots-head">
+          <h2 class="panel-title" id="eph-lots-title">Лоты</h2>
+          <button class="ghost small" id="eph-clear" hidden>Показать все</button>
+        </div>
+        <div id="eph-lots"></div>
+        <p class="empty" id="eph-empty" hidden></p>
+      </section>
+    </div>
+    <p class="eph-note">Техрот (Кода) на warframe.market не продаются, поэтому их эфемеры отследить там нельзя — на маркете есть только Личи Кувы и Сёстры Парвос.</p>
   </section>
 
   <!-- Watch list -->

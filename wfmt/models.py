@@ -122,3 +122,31 @@ class Notice:
     title: str
     body: str
     url: str | None = None
+
+
+@dataclass
+class EphWatch:
+    id: int | None
+    kind: str
+    element: str
+    weapon: str | None
+    max_price: int | None
+    notify: bool
+
+
+@dataclass
+class EphLot:
+    id: str
+    kind: str
+    element: str
+    weapon: str
+    damage: int | None
+    price: int
+    seller: str
+    seller_status: str
+    created: str | None
+    seen_at: float
+
+    @property
+    def url(self) -> str:
+        return f"{"https://warframe.market"}/auction/{self.id}"

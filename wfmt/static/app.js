@@ -263,7 +263,7 @@ function showTab(name) {
 }
 $$(".tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 function refreshTab() {
-  ({ watch: loadPrices, rivens: loadRivens, inventory: loadSell, orders: loadOrders, alerts: loadAlerts, primes: loadPrimes })[currentTab]();
+  ({ watch: loadPrices, rivens: loadRivens, inventory: loadSell, orders: loadOrders, alerts: loadAlerts, primes: loadPrimes, ephemeras: loadEphemeras })[currentTab]();
 }
 
 // ---------- status ----------
@@ -1678,6 +1678,150 @@ async function loadPrimes() {
   if (!d.primes.length) setTimeout(() => currentTab === "primes" && loadPrimes(), 3000);
 }
 
+
+// ---------- ephemeras: Kuva Lich / Sister of Parvos lots ----------
+const ELEMENT_RU = { electricity: "Электричество", impact: "Удар", radiation: "Радиация", magnetic: "Магнетизм",
+  cold: "Холод", toxin: "Токсин", heat: "Огонь" };
+const EPH_KIND_RU = { lich: "Лич Кувы", sister: "Сестра Парвос" };
+const ephState = { kind: "lich", element: null, online: false, data: null, animate: true, weaponsFor: null };
+const ephKey = (kind, element) => `${kind}:${element}`;
+
+$$("#eph-kind .chip").forEach(c => c.addEventListener("click", () => {
+  ephState.kind = c.dataset.v; ephState.element = null; ephState.animate = true;
+  for (const x of $$("#eph-kind .chip")) x.setAttribute("aria-pressed", String(x === c));
+  renderEph(); fillEphForm();
+}));
+$("#eph-online").addEventListener("change", e => { ephState.online = e.target.checked; renderEphLots(); });
+$("#eph-clear").addEventListener("click", () => { ephState.element = null; renderEph(); });
+
+function ephIcon(e, size) {
+  const box = h("div", { class: `ico eph-ico el-${e.element}${e.thumb ? " has-img" : ""}`, style: size ? `width:${size}px;height:${size}px` : null });
+  if (e.thumb) {
+    const img = h("img", { src: ASSETS + e.thumb, alt: "", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" });
+    img.addEventListener("load", () => img.classList.add("loaded"));
+    img.addEventListener("error", () => { img.remove(); box.classList.remove("has-img"); });
+    box.append(img);
+  }
+  box.append(h("span", { class: "fallback" }, svg("arcane")));
+  return box;
+}
+
+function ephCard(e, i) {
+  const selected = ephState.element === e.element;
+  const card = h("button", { type: "button",
+    class: `eph-card el-${e.element}${selected ? " selected" : ""}${e.count ? "" : " none"}${ephState.animate ? " enter" : ""}`,
+    title: e.name_en, onclick: () => { ephState.element = selected ? null : e.element; renderEph(); } },
+    h("div", { class: "eph-art" }, ephIcon(e, 64),
+      e.animation ? h("img", { class: "eph-anim", src: ASSETS + e.animation, alt: "", loading: "lazy", referrerpolicy: "no-referrer" }) : null),
+    h("div", { class: "eph-name" }, e.name),
+    h("div", { class: "eph-el" }, h("i"), ELEMENT_RU[e.element] || e.element),
+    h("div", { class: "eph-stat" },
+      e.count ? [h("span", { class: "dim" }, `лотов: ${e.count} · от`), plat(e.min_price)] : h("span", { class: "dim" }, "лотов пока нет")),
+    e.watched ? h("span", { class: "eph-bell", title: "Вы следите за этой эфемерой" }, svg("bell")) : null);
+  if (ephState.animate) card.style.setProperty("--i", i);
+  return card;
+}
+
+function ephLotRow(l) {
+  const fresh = Date.now() - l.seen_at * 1000 < 60000 && l.created && Date.now() - new Date(l.created).getTime() < 30 * 60000;
+  return h("div", { class: `lot eph-lot${fresh ? " new" : ""}` },
+    h("div", {}, plat(l.price), fresh ? h("span", { class: "col-sub", style: "color:var(--gold)" }, "новый") : null),
+    h("div", { class: "eph-lot-main" }, ephIcon({ element: l.element, thumb: l.thumb }, 36),
+      h("div", {}, h("div", { class: "eph-lot-name" }, l.ephemera),
+        h("div", { class: "dim" }, `${l.weapon_name}${l.damage != null ? ` · +${l.damage}% урона` : ""}`))),
+    h("div", { class: "meta" },
+      h("span", {}, l.created ? `выставлен ${ago(l.created)}` : `замечен ${ago(new Date(l.seen_at * 1000).toISOString())}`),
+      h("span", { class: "seller" }, h("span", { class: `dot ${l.seller_status}` }), l.seller, h("span", { class: "dim" }, STATUS_RU[l.seller_status] || ""))),
+    h("div", { class: "actions" }, ext(l.url, "Открыть лот на маркете")));
+}
+
+function renderEphLots() {
+  const d = ephState.data;
+  if (!d) return;
+  const f = ephState;
+  const sel = f.element ? d.summary.find(e => e.kind === f.kind && e.element === f.element) : null;
+  const lots = d.lots.filter(l => l.kind === f.kind && (!f.element || l.element === f.element) && (!f.online || l.seller_status === "ingame"));
+  $("#eph-lots-title").textContent = sel ? `Лоты: ${sel.name}` : `Лоты: все ${f.kind === "lich" ? "личи" : "сёстры"} с эфемерой`;
+  $("#eph-clear").hidden = !sel;
+  $("#eph-lots").replaceChildren(...lots.slice(0, 80).map(ephLotRow));
+  $("#eph-empty").hidden = lots.length > 0;
+  $("#eph-empty").textContent = d.updated_at
+    ? "Подходящих лотов пока не видно. Новые появятся здесь, как только их выставят."
+    : "Собираю лоты с маркета — первые появятся через несколько секунд.";
+}
+
+function renderEphWatches() {
+  const d = ephState.data;
+  $("#eph-watches").replaceChildren(...d.watches.map(w => h("div", { class: "eph-watch" },
+    ephIcon({ element: w.element, thumb: w.thumb }, 32),
+    h("div", { class: "eph-watch-text" },
+      h("div", {}, h("b", {}, w.name), h("span", { class: "dim" }, ` · ${EPH_KIND_RU[w.kind]}`)),
+      h("div", { class: "dim" }, [w.weapon_name || "любое оружие", w.max_price ? `до ${w.max_price} пл` : "любая цена",
+        `сейчас лотов: ${w.matches}`].join(" · "))),
+    w.notify ? h("span", { class: "tag sale", title: "Придёт уведомление о новом лоте" }, svg("bell"), "уведомления") : null,
+    h("button", { class: "icon-btn", title: "Перестать следить", onclick: async () => {
+      await api(`/api/ephemeras/watch/${w.id}`, { method: "DELETE" }); loadEphemeras();
+    } }, svg("close")))));
+  if (!d.watches.length) $("#eph-watches").append(h("p", { class: "dim eph-hint" },
+    "Выберите эфемеру — программа пришлёт уведомление, как только кто-то выставит лича или сестру с ней."));
+}
+
+function renderEph() {
+  const d = ephState.data;
+  if (!d) return;
+  const list = d.summary.filter(e => e.kind === ephState.kind);
+  $("#eph-grid").replaceChildren(...list.map(ephCard));
+  ephState.animate = false;
+  renderEphLots();
+  if (ephState.element) $("#eph-pick").value = ephKey(ephState.kind, ephState.element);
+}
+
+async function fillEphWeapons(kind) {
+  if (ephState.weaponsFor === kind) return;
+  ephState.weaponsFor = kind;
+  let list = [];
+  try { list = await api(`/api/ephemeras/weapons?kind=${kind}`); } catch { /* keep "любое" */ }
+  $("#eph-weapon").replaceChildren(h("option", { value: "" }, "любое"), ...list.map(w => h("option", { value: w.slug }, w.name)));
+}
+
+function fillEphForm() {
+  const d = ephState.data;
+  if (!d) return;
+  const cur = $("#eph-pick").value;
+  const list = d.summary.filter(e => e.kind === ephState.kind);
+  $("#eph-pick").replaceChildren(...list.map(e => h("option", { value: ephKey(e.kind, e.element) }, `${e.name} (${ELEMENT_RU[e.element] || e.element})`)));
+  if (list.some(e => ephKey(e.kind, e.element) === cur)) $("#eph-pick").value = cur;
+  fillEphWeapons(ephState.kind);
+}
+
+$("#eph-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const [kind, element] = ($("#eph-pick").value || "").split(":");
+  if (!kind) return;
+  const max = parseInt($("#eph-max").value, 10);
+  try {
+    await api("/api/ephemeras/watch", { method: "POST", body: {
+      kind, element, weapon: $("#eph-weapon").value || null, max_price: Number.isFinite(max) ? max : null,
+      notify: $("#eph-notify").checked } });
+    $("#eph-max").value = "";
+    toast("Слежу за эфемерой");
+    loadEphemeras();
+  } catch (err) { toast(err.message, true); }
+});
+
+async function loadEphemeras() {
+  let d;
+  try { d = await api("/api/ephemeras"); } catch (e) { toast(e.message, true); return; }
+  const first = !ephState.data;
+  ephState.data = d;
+  $("#eph-sub").textContent = "Личи Кувы и Сёстры Парвос с эфемерой на warframe.market. Новые лоты ловятся из ленты маркета каждые 20 с и хранятся двое суток"
+    + (d.updated_at ? `, последняя проверка ${ago(d.updated_at)}.` : ".") + (d.error ? " Последняя проверка не удалась — маркет недоступен." : "");
+  renderEph();
+  renderEphWatches();
+  if (first || !$("#eph-pick").options.length) fillEphForm();
+  if (!d.summary.length) setTimeout(() => currentTab === "ephemeras" && loadEphemeras(), 3000);
+}
+
 // ---------- quit ----------
 $("#quit").addEventListener("click", async () => {
   if (!confirm("Закрыть программу? Отслеживание и уведомления остановятся.")) return;
@@ -1695,6 +1839,7 @@ for (const [id, icon] of [["sell-empty", "box"], ["orders-empty", "shop"], ["wat
 setInterval(loadStatus, 15000);
 setInterval(() => currentTab === "watch" && !document.hidden && loadPrices(), 60000);
 setInterval(() => currentTab === "rivens" && !document.hidden && loadRivens(), 10000);
+setInterval(() => currentTab === "ephemeras" && !document.hidden && loadEphemeras(), 20000);
 
 let startTab = "inventory";
 try { startTab = localStorage.getItem("tab") || "inventory"; } catch { /* ignore */ }

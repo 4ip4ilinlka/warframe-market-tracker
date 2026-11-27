@@ -88,3 +88,15 @@ def test_apply_rejects_unknown_format(db):
         apply_profile(db, {"version": 99})
     with pytest.raises(ValueError):
         apply_profile(db, {"watch": "not a list", "version": 1})
+
+
+def test_profile_keeps_ephemera_watches(db):
+    from wfmt.models import EphWatch
+
+    db.eph_watch_add(EphWatch(None, "sister", "heat", "tenet_tetra", 300, True))
+    data = snapshot(db, {}, include_inventory=False)
+    assert data["ephemeras"] == [{"kind": "sister", "element": "heat", "weapon": "tenet_tetra", "max_price": 300, "notify": True}]
+    db.eph_watch_add(EphWatch(None, "lich", "cold", None, None, False))
+    apply_profile(db, data)
+    assert [(w.kind, w.element, w.weapon, w.max_price, w.notify) for w in db.eph_watch_list()] == [
+        ("sister", "heat", "tenet_tetra", 300, True)]

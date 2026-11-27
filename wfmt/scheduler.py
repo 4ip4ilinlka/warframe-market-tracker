@@ -56,6 +56,9 @@ class Scheduler:
     def ui_seen(self) -> None:
         self._last_ui = self.clock()
 
+    def ui_active(self) -> bool:
+        return self.clock() - self._last_ui <= UI_IDLE_S
+
     def active_watches(self):
         watches = self.db.riven_watch_list()
         if self.clock() - self._last_ui <= UI_IDLE_S:

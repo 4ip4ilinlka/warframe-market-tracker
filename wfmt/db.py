@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
 
-from .models import Alert, InvItem, InvRiven, PriceSnapshot, RivenWatch, WatchEntry
+from .models import Alert, EphLot, EphWatch, InvItem, InvRiven, PriceSnapshot, RivenWatch, WatchEntry
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS watch (
@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS secret (key TEXT PRIMARY KEY, value BLOB NOT NULL);
 CREATE TABLE IF NOT EXISTS profile (name TEXT PRIMARY KEY, data TEXT NOT NULL, saved_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS set_parts (set_slug TEXT PRIMARY KEY, parts TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS value_history (hour TEXT PRIMARY KEY, total INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS eph_watch (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, element TEXT NOT NULL,
+  weapon TEXT, max_price INTEGER, notify INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS eph_lot (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, element TEXT NOT NULL, weapon TEXT NOT NULL, damage INTEGER,
+  price INTEGER NOT NULL, seller TEXT NOT NULL, status TEXT NOT NULL, created TEXT, seen_at REAL NOT NULL);
 """
 
 _NONE_RANK = -1
@@ -243,8 +249,8 @@ class Db:
         self._exec("DELETE FROM profile WHERE name=?", (name,))
 
     def clear_setup(self) -> None:
-        """Remove watches, riven watches and all alerts (before loading a profile)."""
-        for table in ("watch", "riven_watch", "riven_seen", "alert"):
+        """Remove watches, riven and ephemera watches and all alerts (before loading a profile)."""
+        for table in ("watch", "riven_watch", "riven_seen", "alert", "eph_watch"):
             self._exec(f"DELETE FROM {table}")
 
     # --- set compositions (static market data, cached for good) ---
@@ -263,3 +269,43 @@ class Db:
     def value_history(self, since: datetime) -> list[tuple[datetime, int]]:
         rows = self._all("SELECT hour, total FROM value_history WHERE hour >= ? ORDER BY hour", (since.isoformat(),))
         return [(datetime.fromisoformat(h), t) for h, t in rows]
+
+    # --- ephemera watches and lots ---
+    def eph_watch_add(self, w: EphWatch) -> int:
+        cur = self._exec(
+            "INSERT INTO eph_watch(kind, element, weapon, max_price, notify) VALUES (?,?,?,?,?)",
+            (w.kind, w.element, w.weapon, w.max_price, int(bool(w.notify))),
+        )
+        return int(cur.lastrowid)
+
+    def eph_watch_remove(self, watch_id: int) -> None:
+        self._exec("DELETE FROM eph_watch WHERE id=?", (watch_id,))
+
+    def eph_watch_list(self) -> list[EphWatch]:
+        rows = self._all("SELECT id, kind, element, weapon, max_price, notify FROM eph_watch ORDER BY id")
+        return [EphWatch(i, k, e, wp, mp, bool(n)) for i, k, e, wp, mp, n in rows]
+
+    def eph_lot_save(self, lots: list[EphLot]) -> None:
+        with self._lock:
+            self._conn.executemany(
+                "INSERT OR REPLACE INTO eph_lot(id, kind, element, weapon, damage, price, seller, status, created, seen_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
+                [(l.id, l.kind, l.element, l.weapon, l.damage, l.price, l.seller, l.seller_status, l.created, l.seen_at)
+                 for l in lots],
+            )
+            self._conn.commit()
+
+    def eph_lot_ids(self) -> set[str]:
+        return {r[0] for r in self._all("SELECT id FROM eph_lot")}
+
+    def eph_lot_list(self) -> list[EphLot]:
+        rows = self._all("SELECT id, kind, element, weapon, damage, price, seller, status, created, seen_at FROM eph_lot")
+        return [EphLot(*r) for r in rows]
+
+    def eph_lot_delete(self, ids: list[str]) -> None:
+        with self._lock:
+            self._conn.executemany("DELETE FROM eph_lot WHERE id=?", [(i,) for i in ids])
+            self._conn.commit()
+
+    def eph_lot_prune(self, older_than: float) -> None:
+        self._exec("DELETE FROM eph_lot WHERE seen_at < ?", (older_than,))

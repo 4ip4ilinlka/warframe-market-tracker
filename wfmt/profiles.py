@@ -1,6 +1,6 @@
 """Profiles: save the user's setup under a name and load it back (or move it as a file).
 
-A profile holds the watch list, riven watches, price alerts, a few settings and the UI state
+A profile holds the watch list, riven and ephemera watches, price alerts, a few settings and the UI state
 (tab, filters, sort), optionally an inventory snapshot. It never holds the market token or
 any game session data.
 """
@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from .db import Db
-from .models import Alert, InvItem, InvRiven, RivenWatch
+from .models import Alert, EphWatch, InvItem, InvRiven, RivenWatch
 
 VERSION = 1
 SETTING_KEYS = ("inventory_enabled",)
@@ -30,6 +30,10 @@ def snapshot(db: Db, ui: dict, include_inventory: bool) -> dict:
             {"kind": a.kind, "slug": a.slug, "rank": a.rank, "threshold": a.threshold}
             for a in alerts if a.kind != "riven"
         ],
+        "ephemeras": [
+            {"kind": w.kind, "element": w.element, "weapon": w.weapon, "max_price": w.max_price, "notify": w.notify}
+            for w in db.eph_watch_list()
+        ],
         "settings": {k: v for k in SETTING_KEYS if (v := db.setting_get(k)) is not None},
         "ui": dict(ui or {}),
     }
@@ -47,7 +51,7 @@ def snapshot(db: Db, ui: dict, include_inventory: bool) -> dict:
 def _check(data: dict) -> None:
     if not isinstance(data, dict) or data.get("version") != VERSION:
         raise ValueError("unsupported profile format")
-    for key in ("watch", "rivens", "alerts"):
+    for key in ("watch", "rivens", "alerts", "ephemeras"):
         if not isinstance(data.get(key, []), list):
             raise ValueError(f"bad profile field: {key}")
 
@@ -65,6 +69,10 @@ def apply_profile(db: Db, data: dict) -> dict:
             db.alert_add(Alert(None, "riven", None, None, None, wid))
     for a in data.get("alerts", []):
         db.alert_add(Alert(None, a["kind"], a.get("slug"), a.get("rank"), a.get("threshold"), None))
+    for e in data.get("ephemeras", []):
+        if e.get("kind") in ("lich", "sister"):
+            db.eph_watch_add(EphWatch(None, str(e["kind"]), str(e["element"]), e.get("weapon"), e.get("max_price"),
+                                      bool(e.get("notify"))))
     for k, v in (data.get("settings") or {}).items():
         if k in SETTING_KEYS:
             db.setting_set(k, str(v))

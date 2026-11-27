@@ -30,6 +30,7 @@ from .profiles import _check as check_profile, apply_profile, snapshot
 from .scheduler import Scheduler
 from .sell import auto_targets, build_sell_list, fill_prices, select_targets
 from .sets import _owned as owned_counts, buildable_sets, catalog_parts, fill_sets
+from .ephemeras import KINDS as EPH_KINDS, EphemeraTracker, watch_matches as eph_matches
 from .primes import PrimeTracker, fill_prime_prices, localize_next
 from .visual import category_of, part_of, rarity_of, relic_tier
 
@@ -62,6 +63,7 @@ class AppState:
     tasks: set = field(default_factory=set)
     fill_task: Any = None
     primes: Any = None
+    ephemeras: Any = None
     orders_cache: list | None = None
     orders_at: float = 0.0
 
@@ -81,6 +83,7 @@ async def build_state() -> AppState:
     st.account = Account(http, db)
     st.inventory = InventoryLoader(http, db)
     st.primes = PrimeTracker(http, catalog, config.data_dir())
+    st.ephemeras = EphemeraTracker(http, db, config.data_dir())
     return st
 
 
@@ -100,6 +103,14 @@ def _snap(s: PriceSnapshot | None) -> dict | None:
 class WatchIn(BaseModel):
     slug: str
     rank: int | None = None
+
+
+class EphWatchIn(BaseModel):
+    kind: str
+    element: str
+    weapon: str | None = None
+    max_price: int | None = None
+    notify: bool = False
 
 
 class RivenWatchIn(BaseModel):
@@ -201,6 +212,9 @@ def create_app(
                 st.spawn(_auto_refresh(st))
             if st.primes is not None:
                 st.spawn(_primes_loop(st))
+            if st.ephemeras is not None and st.http:
+                sch = st.scheduler
+                st.spawn(st.ephemeras.run(lambda: sch is None or sch.ui_active()))
         yield
         if st.scheduler:
             await st.scheduler.stop()
@@ -668,6 +682,54 @@ def create_app(
         st = S(request)
         if st.primes is not None:
             await st.primes.refresh()
+        return {"ok": True}
+
+    # --- ephemeras (Kuva Lich / Sister of Parvos lots) ---
+    @app.get("/api/ephemeras")
+    async def ephemeras(request: Request):
+        tr = S(request).ephemeras
+        if tr is None:
+            return {"summary": [], "lots": [], "watches": [], "updated_at": None, "error": None}
+        lots = tr.lots()
+        names = {(e.kind, e.element): e for e in tr.ephemeras}
+        watches = []
+        for w in tr.watches():
+            e = names.get((w.kind, w.element))
+            watches.append({**asdict(w), "name": e.name if e else w.element, "thumb": e.thumb if e else None,
+                            "weapon_name": tr.weapon_name(w.kind, w.weapon) if w.weapon else None,
+                            "matches": sum(1 for l in lots if eph_matches(w, l))})
+        out_lots = []
+        for l in lots[:300]:
+            e = names.get((l.kind, l.element))
+            out_lots.append({**asdict(l), "url": l.url, "weapon_name": tr.weapon_name(l.kind, l.weapon),
+                             "ephemera": e.name if e else l.element, "thumb": e.thumb if e else None})
+        return {"summary": tr.summary(), "lots": out_lots, "watches": watches,
+                "updated_at": datetime.fromtimestamp(tr.updated_at, timezone.utc).isoformat() if tr.updated_at else None,
+                "error": tr.error}
+
+    @app.get("/api/ephemeras/weapons")
+    async def ephemera_weapons(request: Request, kind: str):
+        tr = S(request).ephemeras
+        if tr is None or kind not in EPH_KINDS:
+            return []
+        return sorted(({"slug": k, "name": v} for k, v in tr.weapons.get(kind, {}).items()), key=lambda w: w["name"])
+
+    @app.post("/api/ephemeras/watch")
+    async def ephemera_watch_add(request: Request, body: EphWatchIn):
+        tr = S(request).ephemeras
+        if tr is None:
+            return err(503, "Эфемеры недоступны")
+        try:
+            wid = tr.add_watch(body.kind, body.element, body.weapon, body.max_price, notify=body.notify)
+        except ValueError:
+            return err(400, "Неизвестная эфемера")
+        return {"id": wid}
+
+    @app.delete("/api/ephemeras/watch/{watch_id}")
+    async def ephemera_watch_remove(request: Request, watch_id: int):
+        tr = S(request).ephemeras
+        if tr is not None:
+            tr.remove_watch(watch_id)
         return {"ok": True}
 
     @app.get("/api/sets")

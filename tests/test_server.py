@@ -461,3 +461,41 @@ def test_primes_endpoint_with_ownership(client, state):
     assert "owned_parts" in p and "total_parts" in p
     assert client.post("/api/primes/refresh").status_code == 200
     assert state.primes.refreshed == 1
+
+
+def _eph_tracker(state, tmp_path):
+    from wfmt.ephemeras import Ephemera, EphemeraTracker
+    from wfmt.models import EphLot
+
+    tr = EphemeraTracker(None, state.db, tmp_path, notifier=lambda n: None, clock=lambda: 1000.0)
+    tr.ephemeras = [Ephemera("lich", "heat", "vengeful_flame", "Пламя Мщения", "Vengeful Flame Ephemera", None)]
+    tr.weapons = {"lich": {"kuva_kohm": "Кува Ком"}, "sister": {}}
+    state.db.eph_lot_save([EphLot("a1", "lich", "heat", "kuva_kohm", 35, 150, "seller1", "ingame", None, 990.0)])
+    state.ephemeras = tr
+    return tr
+
+
+def test_ephemeras_endpoint_lists_summary_lots_and_watches(client, state, tmp_path):
+    _eph_tracker(state, tmp_path)
+    r = client.post("/api/ephemeras/watch", json={"kind": "lich", "element": "heat", "max_price": 200, "notify": True})
+    assert r.status_code == 200
+    d = client.get("/api/ephemeras").json()
+    (s,) = d["summary"]
+    assert (s["name"], s["count"], s["min_price"], s["watched"]) == ("Пламя Мщения", 1, 150, True)
+    (lot,) = d["lots"]
+    assert (lot["id"], lot["weapon_name"], lot["ephemera"], lot["url"]) == (
+        "a1", "Кува Ком", "Пламя Мщения", "https://warframe.market/auction/a1")
+    (w,) = d["watches"]
+    assert (w["kind"], w["element"], w["max_price"], w["notify"], w["name"], w["matches"]) == ("lich", "heat", 200, True, "Пламя Мщения", 1)
+    assert client.delete(f"/api/ephemeras/watch/{w['id']}").status_code == 200
+    assert client.get("/api/ephemeras").json()["watches"] == []
+
+
+def test_ephemera_watch_rejects_unknown(client, state, tmp_path):
+    _eph_tracker(state, tmp_path)
+    assert client.post("/api/ephemeras/watch", json={"kind": "coda", "element": "heat"}).status_code == 400
+
+
+def test_ephemera_weapons(client, state, tmp_path):
+    _eph_tracker(state, tmp_path)
+    assert client.get("/api/ephemeras/weapons?kind=lich").json() == [{"slug": "kuva_kohm", "name": "Кува Ком"}]
